@@ -356,7 +356,10 @@ class Renderer {
             new VertexAttribute(4, context.FLOAT, false, 8 * 4, 4 * 4),
         ], context.DYNAMIC_DRAW);
 
-        context.clearColor(0, 0, 0, 1);
+        context.clearColor(0.63, 0.88, 0.98, 1);
+
+        context.enable(context.BLEND);
+        context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
 
         this.resize(width, height);
     }
