@@ -1,3 +1,25 @@
+class Framebuffer {
+    /**
+     * @param {WebGL2RenderingContext} context
+     */
+    constructor(context) {
+        const handle = context.createFramebuffer();
+        context.bindFramebuffer(context.FRAMEBUFFER, handle);
+
+        this.context = context;
+        this.handle = handle;
+    }
+
+    delete() {
+        const { context, handle } = this;
+
+        if (handle !== null) {
+            context.deleteFramebuffer(handle);
+            this.handle = null;
+        }
+    }
+}
+
 class Shader {
     /**
      * @param {WebGL2RenderingContext} context
@@ -113,7 +135,7 @@ class Texture {
         context.activeTexture(context.TEXTURE0);
         context.bindTexture(type, handle);
 
-        context.texImage2D(type, 0, context.RGBA, context.RGBA, context.UNSIGNED_BYTE, image);
+        context.texImage2D(type, 0, context.SRGB8_ALPHA8, context.RGBA, context.UNSIGNED_BYTE, image);
 
         context.texParameteri(type, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE);
         context.texParameteri(type, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE);
@@ -246,6 +268,8 @@ class VertexArray {
             context.vertexAttribPointer(i, vertexAttribute.elements, vertexAttribute.type, vertexAttribute.normalized, vertexAttribute.stride, vertexAttribute.offset);
         }
 
+        context.bindVertexArray(null);
+
         this.context = context;
         this.handle = handle;
     }
@@ -254,6 +278,14 @@ class VertexArray {
         const { context, handle } = this;
 
         context.bindVertexArray(handle);
+
+        return this;
+    }
+
+    unnbind() {
+        const { context } = this;
+
+        context.bindVertexArray(null);
 
         return this;
     }
@@ -267,6 +299,8 @@ class VertexArray {
         this.bind();
 
         context.drawArrays(context.TRIANGLES, 0, vertexCount);
+
+        this.unnbind();
 
         return this;
     }
@@ -356,10 +390,13 @@ class Renderer {
             new VertexAttribute(4, context.FLOAT, false, 8 * 4, 4 * 4),
         ], context.DYNAMIC_DRAW);
 
-        context.clearColor(0.63, 0.88, 0.98, 1);
-
         context.enable(context.BLEND);
         context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
+
+        this.r = 0.63;
+        this.g = 0.88;
+        this.b = 0.98;
+        this.a = 1;
 
         this.resize(width, height);
     }
@@ -401,6 +438,7 @@ class Renderer {
     clear() {
         const { context } = this;
 
+        context.clearColor(this.r, this.g, this.b, this.a);
         context.clear(context.COLOR_BUFFER_BIT);
 
         return this;
@@ -423,7 +461,7 @@ class Renderer {
         return this;
     }
 
-    addtVertex() {
+    addVertex() {
         const { VERTEX_ELEMENTS, vertexCount, vertices } = this;
 
         for (let i = 0; i < VERTEX_ELEMENTS; i++)
@@ -447,9 +485,9 @@ class Renderer {
         }
 
         return this
-            .addtVertex(ax, ay, au, av, r, g, b, a)
-            .addtVertex(bx, by, bu, bv, r, g, b, a)
-            .addtVertex(cx, cy, cu, cv, r, g, b, a);
+            .addVertex(ax, ay, au, av, r, g, b, a)
+            .addVertex(bx, by, bu, bv, r, g, b, a)
+            .addVertex(cx, cy, cu, cv, r, g, b, a);
     }
 
     drawQuad(

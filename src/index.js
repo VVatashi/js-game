@@ -15,14 +15,14 @@
 
     class Ball extends GameObject {
         static types = [
-            [1, 0.5, 0.5, 1],
-            [0.5, 1, 0.5, 1],
-            [0.5, 0.5, 1, 1],
-            [1, 1, 0.5, 1],
-            [1, 0.5, 1, 1],
-            [0.5, 1, 1, 1],
+            [1, 0.2, 0.2, 1],
+            [0.2, 1, 0.2, 1],
+            [0.2, 0.2, 1, 1],
+            [1, 1, 0.2, 1],
+            [1, 0.2, 1, 1],
+            [0.2, 1, 1, 1],
             [1, 1, 1, 1],
-            [0.5, 0.5, 0.5, 1],
+            [0.2, 0.2, 0.2, 1],
         ];
 
         get objectType() { return 'Ball'; }
@@ -191,6 +191,7 @@ out vec4 color;
 
 void main() {
     color = fragColor * texture(colorTexture, fragTexCoords);
+    color.rgb = pow(color.rgb, vec3(1.0 / 2.2));
 }
 `;
 
@@ -307,7 +308,7 @@ void main() {
                 const directionX = offsetX / distance;
                 const directionY = offsetY / distance;
 
-                const speed = 0.1;
+                const speed = 0.05;
 
                 projectile.velocityX = directionX * speed;
                 projectile.velocityY = directionY * speed;
@@ -329,12 +330,14 @@ void main() {
         gameObjects = [];
         firstLayer = [];
 
-        for (let y = -1; y < 5; y++)
+        const minY = -difficulty;
+        for (let y = minY; y < 5; y++)
             for (let x = -3; x < (y % 2 ? 3 : 4); x++) {
                 const type = Math.floor(Math.min(difficulty + 2, Ball.types.length) * Math.random());
                 const gameObject = new Ball(2 * ballRadius * x + (y % 2 ? ballRadius : 0), ballRadius + 2 * ballRadius * y, ballRadius, 0, 0.0005, ballTexture, type);
                 gameObjects.push(gameObject);
-                if (y === -1) firstLayer.push(gameObject);
+
+                if (y === minY) firstLayer.push(gameObject);
             }
 
         createOrResetProjectile();
