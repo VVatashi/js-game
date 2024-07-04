@@ -292,7 +292,7 @@ void main() {
 
         const ballImage = new Image();
         ballImage.loading = 'eager';
-        ballImage.src = '/assets/ball.png';
+        ballImage.src = '../assets/ball.png';
         ballImage.addEventListener('load', () => {
             ballTexture = new Texture(context, context.TEXTURE_2D, ballImage.width, ballImage.height);
             ballTexture.setImage(ballImage);
@@ -301,7 +301,7 @@ void main() {
 
         const whiteImage = new Image();
         whiteImage.loading = 'eager';
-        whiteImage.src = '/assets/white.png';
+        whiteImage.src = '../assets/white.png';
         whiteImage.addEventListener('load', () => {
             whiteTexture = new Texture(context, context.TEXTURE_2D, whiteImage.width, whiteImage.height);
             whiteTexture.setImage(whiteImage);
