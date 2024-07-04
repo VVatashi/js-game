@@ -156,6 +156,43 @@
         }
     }
 
+    class ExplodingBall extends Ball {
+        get objectType() { return 'ExplodingBall'; }
+
+        constructor(x, y, radius, velocityX, velocityY, texture, type) {
+            super(x, y, radius, velocityX, velocityY, texture, type);
+
+            this.lifetime = 200;
+        }
+
+        /**
+         * @param {number} deltaTime
+         */
+        update(deltaTime) {
+            super.update(deltaTime);
+
+            this.x += this.velocityX * deltaTime;
+            this.y += this.velocityY * deltaTime;
+
+            this.lifetime -= deltaTime;
+            this.radius *= 1.05;
+        }
+
+        /**
+         * @param {Renderer} renderer
+         */
+        draw(renderer) {
+            const r = Ball.types[this.type][0];
+            const g = Ball.types[this.type][1];
+            const b = Ball.types[this.type][2];
+            const a = (this.lifetime / 200);
+
+            const scale = renderer.height / 100;
+            const [x, y] = worldToScreen(this.x, this.y);
+            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, r, g, b, a);
+        }
+    }
+
     const VERTEX_SHADER_SOURCE = `#version 300 es
 
 uniform mat4 matrix;
@@ -404,6 +441,9 @@ void main() {
                     firstLayer = firstLayer.filter(gameObject => !linkedSet.has(gameObject));
 
                     for (const ball of [...linkedSet]) {
+                        // Create exploding ball for removed linked balls
+                        gameObjects.push(new ExplodingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ballTexture, ball.type));
+
                         // Create particles for removed linked balls
                         for (let i = 0; i < 10; i++) {
                             let velocityX = 2 * Math.random() - 1;
@@ -483,7 +523,7 @@ void main() {
         // Remove particles
         const objectsToDelete = [];
         for (const gameObject of gameObjects) {
-            if (gameObject.objectType === 'Particle' || gameObject.objectType === 'FallingBall') {
+            if (gameObject.objectType === 'Particle' || gameObject.objectType === 'FallingBall' || gameObject.objectType === 'ExplodingBall') {
                 if (gameObject.lifetime < 0) {
                     objectsToDelete.push(gameObject);
                 }
@@ -506,9 +546,9 @@ void main() {
             const b = Ball.types[nextProjectileType][2];
             const a = Ball.types[nextProjectileType][3];
 
-            const nextProjectileRadius = ballRadius / 2;
+            const nextProjectileRadius = ballRadius * 0.75;
             const scale = renderer.height / 100;
-            const [x, y] = worldToScreen(-10, 95);
+            const [x, y] = worldToScreen(-5, 95);
             renderer.drawRectangleOffCenter(x, y, scale * nextProjectileRadius * 2, scale * nextProjectileRadius * 2, 0, 0, 1, 1, r, g, b, a);
         }
 
