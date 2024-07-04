@@ -1,5 +1,6 @@
 * {
     box-sizing: border-box;
+    user-select: none;
 }
 
 :root {
@@ -10,21 +11,26 @@ html,
 body {
     margin: 0;
     padding: 0;
+
     overscroll-behavior: none;
 }
 
 .container {
     background: #000;
     display: flex;
+
     width: 100%;
     height: 100vh;
     height: var(--doc-height);
+
     overflow: hidden;
+
     pointer-events: none;
 }
 
 .canvas {
     width: 100%;
     height: 100%;
+
     pointer-events: none;
 }
