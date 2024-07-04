@@ -114,7 +114,7 @@
         constructor(x, y, radius, velocityX, velocityY, texture, type) {
             super(x, y, radius, velocityX, velocityY, texture, type);
 
-            this.lifetime = 100 * Math.random();
+            this.lifetime = 250 * Math.random();
         }
 
         /**
@@ -125,6 +125,32 @@
 
             this.x += this.velocityX * deltaTime;
             this.y += this.velocityY * deltaTime;
+
+            this.velocityY += 0.000002 * deltaTime * deltaTime;
+
+            this.lifetime -= deltaTime;
+        }
+    }
+
+    class FallingBall extends Ball {
+        get objectType() { return 'FallingBall'; }
+
+        constructor(x, y, radius, velocityX, velocityY, texture, type) {
+            super(x, y, radius, velocityX, velocityY, texture, type);
+
+            this.lifetime = 10000;
+        }
+
+        /**
+         * @param {number} deltaTime
+         */
+        update(deltaTime) {
+            super.update(deltaTime);
+
+            this.x += this.velocityX * deltaTime;
+            this.y += this.velocityY * deltaTime;
+
+            this.velocityY += 0.000002 * deltaTime * deltaTime;
 
             this.lifetime -= deltaTime;
         }
@@ -198,16 +224,13 @@ void main() {
     /** @type {Projectile} */
     let projectile = null;
 
-    /** @type {number} */
     let nextProjectileType = 0;
 
-    /** @type {string} */
     let state = 'idle';
 
-    /** @type {number} */
+    const ballRadius = 2;
     const levelWidth = 45;
 
-    /** @type {number} */
     let difficulty = 1;
 
     let cursorX = 0;
@@ -306,27 +329,27 @@ void main() {
         gameObjects = [];
         firstLayer = [];
 
-        const radius = 3;
-        for (let y = -3; y < 3; y++)
+        for (let y = -1; y < 5; y++)
             for (let x = -3; x < (y % 2 ? 3 : 4); x++) {
                 const type = Math.floor(Math.min(difficulty + 2, Ball.types.length) * Math.random());
-                const gameObject = new Ball(2 * radius * x + (y % 2 ? radius : 0), radius + 2 * radius * y, radius, 0, 0.001, ballTexture, type);
+                const gameObject = new Ball(2 * ballRadius * x + (y % 2 ? ballRadius : 0), ballRadius + 2 * ballRadius * y, ballRadius, 0, 0.0005, ballTexture, type);
                 gameObjects.push(gameObject);
-                if (y === -3) firstLayer.push(gameObject);
+                if (y === -1) firstLayer.push(gameObject);
             }
 
         createOrResetProjectile();
-        difficulty++;
     }
 
     function createOrResetProjectile() {
         gameObjects = gameObjects.filter(gameObject => gameObject !== projectile);
 
-        const radius = 3;
-        const types = getBallTypesOnBoard();
+        let types = getBallTypesOnBoard();
+        if (types.length > 1)
+            types = types.filter(type => type !== nextProjectileType);
+
         const type = nextProjectileType;
         nextProjectileType = types.length > 0 ? types[Math.floor(types.length * Math.random())] : 0;
-        gameObjects.push(projectile = new Projectile(0, 100 - radius, radius, 0, 0, ballTexture, type));
+        gameObjects.push(projectile = new Projectile(0, 95, ballRadius, 0, 0, ballTexture, type));
         state = 'idle';
     }
 
@@ -371,54 +394,60 @@ void main() {
                 const ball = new Ball(x, y, gameObject.radius, gameObject.velocityX, gameObject.velocityY, ballTexture, projectile.type);
                 gameObjects.push(ball);
 
-                const linked = getLinkedBallsOfSameType(ball);
-                if (linked.length > 2) {
+                const linkedSet = new Set(getLinkedBallsOfSameType(ball));
+                if (linkedSet.size > 2) {
                     // Remove linked balls
-                    gameObjects = gameObjects.filter(gameObject => !linked.includes(gameObject));
-                    firstLayer = firstLayer.filter(gameObject => !linked.includes(gameObject));
+                    gameObjects = gameObjects.filter(gameObject => !linkedSet.has(gameObject));
+                    firstLayer = firstLayer.filter(gameObject => !linkedSet.has(gameObject));
 
-                    for (const ball of linked) {
-                        // Create particles
+                    for (const ball of [...linkedSet]) {
+                        // Create particles for removed linked balls
                         for (let i = 0; i < 10; i++) {
                             let velocityX = 2 * Math.random() - 1;
                             let velocityY = 2 * Math.random() - 1;
 
-                            let length = Math.sqrt(velocityX * velocityX + velocityY + velocityY);
+                            const length = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
                             velocityX /= length;
                             velocityY /= length;
 
-                            velocityX *= 0.1;
-                            velocityY *= 0.1;
+                            velocityX *= 0.025;
+                            velocityY *= 0.025;
 
-                            gameObjects.push(new Particle(ball.x, ball.y, 1, velocityX, velocityY, ballTexture, ball.type));
+                            const particleRadius = ballRadius * 0.25;
+                            gameObjects.push(new Particle(ball.x, ball.y, particleRadius, velocityX, velocityY, ballTexture, ball.type));
                         }
+                    }
 
-                        // Remove detached balls
-                        const neighbours = [ball, ...getNeighbourBalls(ball)];
-                        for (const neighbour of neighbours) {
-                            const firstLayerSet = new Set(firstLayer);
-                            const linkedToNeighbourBall = new Set(getLinkedBalls(neighbour));
-                            if ([...linkedToNeighbourBall].filter(b => firstLayerSet.has(b)).length === 0) {
-                                gameObjects = gameObjects.filter(gameObject => !linkedToNeighbourBall.has(gameObject));
-                                firstLayer = firstLayer.filter(gameObject => !linkedToNeighbourBall.has(gameObject));
+                    // Find neighbour balls
+                    const neighboursSet = new Set();
+                    for (const ball of [...linkedSet]) {
+                        const ballNeighbours = getNeighbourBalls(ball);
+                        for (const ball of ballNeighbours)
+                            neighboursSet.add(ball);
+                    }
 
-                                for (const ball of [...linkedToNeighbourBall]) {
-                                    // Create particles
-                                    for (let i = 0; i < 10; i++) {
-                                        let velocityX = 2 * Math.random() - 1;
-                                        let velocityY = 2 * Math.random() - 1;
+                    // Find detached balls
+                    const detachedSet = new Set();
+                    const firstLayerSet = new Set(firstLayer);
+                    for (const neighbour of [...neighboursSet]) {
+                        const linkedToNeighbour = getLinkedBalls(neighbour);
+                        if (linkedToNeighbour.filter(ball => firstLayerSet.has(ball)).length === 0)
+                            for (const ball of linkedToNeighbour)
+                                detachedSet.add(ball);
+                    }
 
-                                        let length = Math.sqrt(velocityX * velocityX + velocityY + velocityY);
-                                        velocityX /= length;
-                                        velocityY /= length;
+                    // Remove detached balls
+                    if (detachedSet.size > 0) {
+                        gameObjects = gameObjects.filter(gameObject => !detachedSet.has(gameObject));
+                        firstLayer = firstLayer.filter(gameObject => !detachedSet.has(gameObject));
 
-                                        velocityX *= 0.1;
-                                        velocityY *= 0.1;
+                        // Create falling balls for removed detached balls
+                        for (const ball of [...detachedSet]) {
+                            if (linkedSet.has(ball)) continue;
 
-                                        gameObjects.push(new Particle(ball.x, ball.y, 1, velocityX, velocityY, ballTexture, ball.type));
-                                    }
-                                }
-                            }
+                            const velocityX = (2 * Math.random() - 1) * 0.001;
+                            const velocityY = ball.velocityY;
+                            gameObjects.push(new FallingBall(ball.x, ball.y, ballRadius, velocityX, velocityY, ballTexture, ball.type));
                         }
                     }
                 }
@@ -436,20 +465,22 @@ void main() {
         for (const gameObject of gameObjects) {
             if (gameObject.objectType !== 'Ball') continue;
 
-            if (gameObject.y > 100 - 2 * gameObject.radius) {
+            if (gameObject.y + gameObject.radius > 90) {
                 createOrResetLevel();
                 break;
             }
         }
 
         // Reset level if all balls destroyed
-        if (gameObjects.filter(gameObject => gameObject.objectType === 'Ball').length === 0)
+        if (gameObjects.filter(gameObject => gameObject.objectType === 'Ball').length === 0) {
+            difficulty++;
             createOrResetLevel();
+        }
 
         // Remove particles
         const objectsToDelete = [];
         for (const gameObject of gameObjects) {
-            if (gameObject.objectType === 'Particle') {
+            if (gameObject.objectType === 'Particle' || gameObject.objectType === 'FallingBall') {
                 if (gameObject.lifetime < 0) {
                     objectsToDelete.push(gameObject);
                 }
@@ -472,10 +503,10 @@ void main() {
             const b = Ball.types[nextProjectileType][2];
             const a = Ball.types[nextProjectileType][3];
 
-            const radius = 2;
+            const nextProjectileRadius = ballRadius / 2;
             const scale = renderer.height / 100;
-            const [x, y] = worldToScreen(-8, 100 - 3);
-            renderer.drawRectangleOffCenter(x, y, scale * radius * 2, scale * radius * 2, 0, 0, 1, 1, r, g, b, a);
+            const [x, y] = worldToScreen(-10, 95);
+            renderer.drawRectangleOffCenter(x, y, scale * nextProjectileRadius * 2, scale * nextProjectileRadius * 2, 0, 0, 1, 1, r, g, b, a);
         }
 
         // Draw trajectory
@@ -503,10 +534,10 @@ void main() {
                 }
 
                 if (i % 100 === 0) {
-                    const radius = 2;
+                    const trajectoryBallRadius = ballRadius / 2;
                     const scale = renderer.height / 100;
                     const [x1, y1] = worldToScreen(x, y);
-                    renderer.drawRectangleOffCenter(x1, y1, scale * radius * 2, scale * radius * 2, 0, 0, 1, 1, 1, 1, 1, 0.25);
+                    renderer.drawRectangleOffCenter(x1, y1, scale * trajectoryBallRadius * 2, scale * trajectoryBallRadius * 2, 0, 0, 1, 1, 1, 1, 1, 0.25);
                 }
             }
         }
@@ -520,11 +551,14 @@ void main() {
         {
             const scale = renderer.height / 100;
 
-            const [x0, y0] = worldToScreen(-levelWidth / 2, 0);
-            renderer.drawRectangle(x0 - 0.2 * scale, y0, 0.2 * scale, 100 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
+            const [x0, y0] = worldToScreen(-levelWidth / 2, 50);
+            renderer.drawRectangleOffCenter(x0, y0, 0.2 * scale, 100 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
 
-            const [x1, y1] = worldToScreen(levelWidth / 2, 0);
-            renderer.drawRectangle(x1, y1, 0.2 * scale, 100 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
+            const [x1, y1] = worldToScreen(levelWidth / 2, 50);
+            renderer.drawRectangleOffCenter(x1, y1, 0.2 * scale, 100 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
+
+            const [x2, y2] = worldToScreen(0, 90);
+            renderer.drawRectangleOffCenter(x2, y2, levelWidth * scale, 0.2 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
         }
 
         renderer.endGeometry();
