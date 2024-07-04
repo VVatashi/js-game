@@ -294,7 +294,8 @@ void main() {
         ballImage.loading = 'eager';
         ballImage.src = '/assets/ball.png';
         ballImage.addEventListener('load', () => {
-            ballTexture = new Texture(context, context.TEXTURE_2D, ballImage);
+            ballTexture = new Texture(context, context.TEXTURE_2D, ballImage.width, ballImage.height);
+            ballTexture.setImage(ballImage);
             ballImage.remove();
         });
 
@@ -302,7 +303,8 @@ void main() {
         whiteImage.loading = 'eager';
         whiteImage.src = '/assets/white.png';
         whiteImage.addEventListener('load', () => {
-            whiteTexture = new Texture(context, context.TEXTURE_2D, whiteImage);
+            whiteTexture = new Texture(context, context.TEXTURE_2D, whiteImage.width, whiteImage.height);
+            whiteTexture.setImage(whiteImage);
             whiteImage.remove();
         });
 

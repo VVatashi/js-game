@@ -6,6 +6,8 @@ class Framebuffer {
         const handle = context.createFramebuffer();
         context.bindFramebuffer(context.FRAMEBUFFER, handle);
 
+        const texture = new Texture();
+
         this.context = context;
         this.handle = handle;
     }
@@ -128,14 +130,15 @@ class Texture {
     /**
      * @param {WebGL2RenderingContext} context
      * @param {number} type
-     * @param {HTMLImageElement} image
+     * @param {number} width
+     * @param {number} height
      */
-    constructor(context, type, image) {
+    constructor(context, type, width, height) {
         const handle = context.createTexture();
         context.activeTexture(context.TEXTURE0);
         context.bindTexture(type, handle);
 
-        context.texImage2D(type, 0, context.SRGB8_ALPHA8, context.RGBA, context.UNSIGNED_BYTE, image);
+        context.texImage2D(type, 0, context.SRGB8_ALPHA8, width, height, 0, context.RGBA, context.UNSIGNED_BYTE, null);
 
         context.texParameteri(type, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE);
         context.texParameteri(type, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE);
@@ -143,8 +146,6 @@ class Texture {
 
         context.texParameteri(type, context.TEXTURE_MIN_FILTER, context.LINEAR_MIPMAP_LINEAR);
         context.texParameteri(type, context.TEXTURE_MAG_FILTER, context.LINEAR);
-
-        context.generateMipmap(type);
 
         this.context = context;
         this.handle = handle;
@@ -156,6 +157,20 @@ class Texture {
 
         context.activeTexture(textureUnit + context.TEXTURE0);
         context.bindTexture(type, handle);
+
+        return this;
+    }
+
+    /**
+     * @param {HTMLImageElement} image
+     */
+    setImage(image) {
+        const { context, handle, type } = this;
+
+        this.bind();
+
+        context.texSubImage2D(type, 0, 0, 0, context.RGBA, context.UNSIGNED_BYTE, image);
+        context.generateMipmap(type);
 
         return this;
     }
