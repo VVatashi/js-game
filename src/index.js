@@ -193,7 +193,7 @@
         }
     }
 
-    const VERTEX_SHADER_SOURCE = `#version 300 es
+    const SCENE_VERTEX_SHADER_SOURCE = `#version 300 es
 
 uniform mat4 matrix;
 
@@ -214,7 +214,45 @@ void main() {
 }
 `;
 
-    const FRAGMENT_SHADER_SOURCE = `#version 300 es
+    const SCENE_FRAGMENT_SHADER_SOURCE = `#version 300 es
+
+precision mediump float;
+
+uniform sampler2D colorTexture;
+
+in vec2 fragPosition;
+in vec2 fragTexCoords;
+in vec4 fragColor;
+
+out vec4 color;
+
+void main() {
+    color = fragColor * texture(colorTexture, fragTexCoords);
+}
+`;
+
+    const SCREEN_VERTEX_SHADER_SOURCE = `#version 300 es
+
+uniform mat4 matrix;
+
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 texCoords;
+layout(location = 2) in vec4 color;
+
+out vec2 fragPosition;
+out vec2 fragTexCoords;
+out vec4 fragColor;
+
+void main() {
+    gl_Position = matrix * vec4(position, 0, 1);
+
+    fragPosition = position;
+    fragTexCoords = texCoords;
+    fragColor = color;
+}
+`;
+
+    const SCREEN_FRAGMENT_SHADER_SOURCE = `#version 300 es
 
 precision mediump float;
 
@@ -242,7 +280,10 @@ void main() {
     let prevTimestamp = null;
 
     /** @type {ShaderProgram} */
-    let shaderProgram = null;
+    let sceneShaderProgram = null;
+
+    /** @type {ShaderProgram} */
+    let screenShaderProgram = null;
 
     /** @type {Texture} */
     let ballTexture = null;
@@ -252,6 +293,12 @@ void main() {
 
     /** @type {Renderer} */
     let renderer = null;
+
+    /** @type {Framebuffer} */
+    let framebufferMultisample = null;
+
+    /** @type {Framebuffer} */
+    let framebuffer = null;
 
     /** @type {GameObject[]} */
     let gameObjects = [];
@@ -280,21 +327,20 @@ void main() {
         canvas = document.getElementById('canvas');
         if (canvas === null) return console.error('#canvas not found');
 
-        context = canvas.getContext('webgl2');
+        context = canvas.getContext('webgl2', { antialias: false });
         if (context === null) return console.error("Can't create webgl context");
 
-        shaderProgram = new ShaderProgram(context, VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE);
+        sceneShaderProgram = new ShaderProgram(context, SCENE_VERTEX_SHADER_SOURCE, SCENE_FRAGMENT_SHADER_SOURCE);
+        screenShaderProgram = new ShaderProgram(context, SCREEN_VERTEX_SHADER_SOURCE, SCREEN_FRAGMENT_SHADER_SOURCE);
         renderer = new Renderer(context, canvas.width, canvas.height);
-
-        resize();
-        addEventListener('resize', resize);
-        requestAnimationFrame(update);
+        framebufferMultisample = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
+        framebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
 
         const ballImage = new Image();
         ballImage.loading = 'eager';
         ballImage.src = './assets/ball.png';
         ballImage.addEventListener('load', () => {
-            ballTexture = new Texture(context, context.TEXTURE_2D, ballImage.width, ballImage.height);
+            ballTexture = new Texture(context, context.TEXTURE_2D, ballImage.width, ballImage.height, context.SRGB8_ALPHA8);
             ballTexture.setImage(ballImage);
             ballImage.remove();
         });
@@ -303,7 +349,7 @@ void main() {
         whiteImage.loading = 'eager';
         whiteImage.src = './assets/white.png';
         whiteImage.addEventListener('load', () => {
-            whiteTexture = new Texture(context, context.TEXTURE_2D, whiteImage.width, whiteImage.height);
+            whiteTexture = new Texture(context, context.TEXTURE_2D, whiteImage.width, whiteImage.height, context.SRGB8_ALPHA8);
             whiteTexture.setImage(whiteImage);
             whiteImage.remove();
         });
@@ -363,6 +409,10 @@ void main() {
         document.addEventListener('contextmenu', event => {
             event.preventDefault();
         });
+
+        resize();
+        addEventListener('resize', resize);
+        requestAnimationFrame(update);
     }
 
     function createOrResetLevel() {
@@ -404,6 +454,8 @@ void main() {
         canvas.height = clientHeight;
 
         renderer.resize(clientWidth, clientHeight);
+        framebufferMultisample.resize(clientWidth, clientHeight).attachRenderbuffer(new Renderbuffer(context, clientWidth, clientHeight));
+        framebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
     }
 
     function update(timestamp) {
@@ -534,9 +586,10 @@ void main() {
 
         gameObjects = gameObjects.filter(gameObject => !objectsToDelete.includes(gameObject));
 
-        shaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
+        sceneShaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
         ballTexture?.bind();
-        renderer.clear().beginGeometry()
+        framebufferMultisample.bind();
+        renderer.clear().beginGeometry();
 
         for (const gameObject of gameObjects)
             gameObject.draw(renderer);
@@ -607,6 +660,27 @@ void main() {
         }
 
         renderer.endGeometry();
+        framebufferMultisample.unbind();
+
+        context.bindFramebuffer(context.READ_FRAMEBUFFER, framebufferMultisample.handle);
+        context.bindFramebuffer(context.DRAW_FRAMEBUFFER, framebuffer.handle);
+        context.blitFramebuffer(0, 0, framebufferMultisample.width, framebufferMultisample.height, 0, 0, framebuffer.width, framebuffer.height, context.COLOR_BUFFER_BIT, context.LINEAR);
+        context.bindFramebuffer(context.READ_FRAMEBUFFER, null);
+        context.bindFramebuffer(context.DRAW_FRAMEBUFFER, null);
+
+        screenShaderProgram.bind().setUniformMatrix('matrix', [
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1,
+        ]);
+
+        context.viewport(0, 0, renderer.width, renderer.height);
+        framebuffer.attachment?.bind();
+        renderer.beginGeometry();
+        renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
+        renderer.endGeometry();
+
         requestAnimationFrame(update);
     }
 

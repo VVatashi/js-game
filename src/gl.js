@@ -1,15 +1,119 @@
-class Framebuffer {
+class Renderbuffer {
     /**
      * @param {WebGL2RenderingContext} context
+     * @param {number} width
+     * @param {number} height
      */
-    constructor(context) {
-        const handle = context.createFramebuffer();
-        context.bindFramebuffer(context.FRAMEBUFFER, handle);
-
-        const texture = new Texture();
+    constructor(context, width, height) {
+        const handle = context.createRenderbuffer();
+        context.bindRenderbuffer(context.RENDERBUFFER, handle);
+        context.renderbufferStorageMultisample(context.RENDERBUFFER, context.getParameter(context.MAX_SAMPLES), context.RGBA8, width, height);
 
         this.context = context;
         this.handle = handle;
+        this.width = width;
+        this.height = height;
+    }
+
+    bind() {
+        const { context, handle } = this;
+
+        context.bindRenderbuffer(context.RENDERBUFFER, handle);
+
+        return this;
+    }
+
+    delete() {
+        const { context, handle } = this;
+
+        if (handle !== null) {
+            context.deleteRenderbuffer(handle);
+            this.handle = null;
+        }
+    }
+}
+
+class Framebuffer {
+    /**
+     * @param {WebGL2RenderingContext} context
+     * @param {number} width
+     * @param {number} height
+     */
+    constructor(context, width, height) {
+        const handle = context.createFramebuffer();
+        context.bindFramebuffer(context.FRAMEBUFFER, handle);
+
+        context.viewport(0, 0, width, height);
+
+        context.bindFramebuffer(context.FRAMEBUFFER, null);
+
+        this.context = context;
+        this.handle = handle;
+        this.width = width;
+        this.height = height;
+    }
+
+    attachTexture(texture) {
+        const { context, attachment } = this;
+
+        this.bind();
+
+        texture.bind();
+        context.framebufferTexture2D(context.FRAMEBUFFER, context.COLOR_ATTACHMENT0, context.TEXTURE_2D, texture.handle, 0);
+        this.attachment = texture;
+
+        this.unbind();
+
+        attachment?.delete();
+
+        return this;
+    }
+
+    attachRenderbuffer(renderbuffer) {
+        const { context, attachment } = this;
+
+        this.bind();
+
+        renderbuffer.bind();
+        context.framebufferRenderbuffer(context.FRAMEBUFFER, context.COLOR_ATTACHMENT0, context.RENDERBUFFER, renderbuffer.handle);
+        this.attachment = renderbuffer;
+
+        this.unbind();
+
+        attachment?.delete();
+
+        return this;
+    }
+
+    resize(width, height) {
+        const { context } = this;
+
+        this.bind();
+
+        context.viewport(0, 0, width, height);
+
+        this.unbind();
+
+        this.width = width;
+        this.height = height;
+
+        return this;
+    }
+
+    bind() {
+        const { context, handle } = this;
+
+        context.bindFramebuffer(context.FRAMEBUFFER, handle);
+
+        return this;
+    }
+
+    unbind() {
+        const { context } = this;
+
+        context.bindFramebuffer(context.FRAMEBUFFER, null);
+
+        return this;
     }
 
     delete() {
@@ -133,18 +237,18 @@ class Texture {
      * @param {number} width
      * @param {number} height
      */
-    constructor(context, type, width, height) {
+    constructor(context, type, width, height, internalFormat = context.RGBA8) {
         const handle = context.createTexture();
         context.activeTexture(context.TEXTURE0);
         context.bindTexture(type, handle);
 
-        context.texImage2D(type, 0, context.SRGB8_ALPHA8, width, height, 0, context.RGBA, context.UNSIGNED_BYTE, null);
+        context.texImage2D(type, 0, internalFormat, width, height, 0, context.RGBA, context.UNSIGNED_BYTE, null);
 
         context.texParameteri(type, context.TEXTURE_WRAP_S, context.CLAMP_TO_EDGE);
         context.texParameteri(type, context.TEXTURE_WRAP_T, context.CLAMP_TO_EDGE);
         context.texParameteri(type, context.TEXTURE_WRAP_R, context.CLAMP_TO_EDGE);
 
-        context.texParameteri(type, context.TEXTURE_MIN_FILTER, context.LINEAR_MIPMAP_LINEAR);
+        context.texParameteri(type, context.TEXTURE_MIN_FILTER, context.LINEAR);
         context.texParameteri(type, context.TEXTURE_MAG_FILTER, context.LINEAR);
 
         this.context = context;
@@ -165,11 +269,12 @@ class Texture {
      * @param {HTMLImageElement} image
      */
     setImage(image) {
-        const { context, handle, type } = this;
+        const { context, type } = this;
 
         this.bind();
 
         context.texSubImage2D(type, 0, 0, 0, context.RGBA, context.UNSIGNED_BYTE, image);
+        context.texParameteri(type, context.TEXTURE_MIN_FILTER, context.LINEAR_MIPMAP_LINEAR);
         context.generateMipmap(type);
 
         return this;
@@ -179,7 +284,7 @@ class Texture {
         const { context, handle } = this;
 
         if (handle !== null) {
-            context.deleteProgram(handle);
+            context.deleteTexture(handle);
             this.handle = null;
         }
     }
@@ -408,19 +513,15 @@ class Renderer {
         context.enable(context.BLEND);
         context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
 
-        this.r = 0.63;
-        this.g = 0.88;
-        this.b = 0.98;
+        this.r = Math.pow(0.63, 2.2);
+        this.g = Math.pow(0.88, 2.2);
+        this.b = Math.pow(0.98, 2.2);
         this.a = 1;
 
         this.resize(width, height);
     }
 
     resize(width, height) {
-        const { context } = this;
-
-        context.viewport(0, 0, width, height);
-
         this.width = width;
         this.height = height;
 
