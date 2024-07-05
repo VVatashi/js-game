@@ -201,14 +201,12 @@ layout(location = 0) in vec2 position;
 layout(location = 1) in vec2 texCoords;
 layout(location = 2) in vec4 color;
 
-out vec2 fragPosition;
 out vec2 fragTexCoords;
 out vec4 fragColor;
 
 void main() {
     gl_Position = matrix * vec4(position, 0, 1);
 
-    fragPosition = position;
     fragTexCoords = texCoords;
     fragColor = color;
 }
@@ -220,7 +218,6 @@ precision mediump float;
 
 uniform sampler2D colorTexture;
 
-in vec2 fragPosition;
 in vec2 fragTexCoords;
 in vec4 fragColor;
 
@@ -231,24 +228,103 @@ void main() {
 }
 `;
 
-    const SCREEN_VERTEX_SHADER_SOURCE = `#version 300 es
-
-uniform mat4 matrix;
+    const THRESHOLD_VERTEX_SHADER_SOURCE = `#version 300 es
 
 layout(location = 0) in vec2 position;
 layout(location = 1) in vec2 texCoords;
 layout(location = 2) in vec4 color;
 
-out vec2 fragPosition;
 out vec2 fragTexCoords;
-out vec4 fragColor;
 
 void main() {
-    gl_Position = matrix * vec4(position, 0, 1);
+    gl_Position = vec4(position, 0, 1);
 
-    fragPosition = position;
     fragTexCoords = texCoords;
-    fragColor = color;
+}
+`;
+
+    const THRESHOLD_FRAGMENT_SHADER_SOURCE = `#version 300 es
+
+precision mediump float;
+
+uniform sampler2D colorTexture;
+uniform float threshold;
+
+in vec2 fragTexCoords;
+
+out vec4 color;
+
+void main() {
+    vec3 result = texture(colorTexture, fragTexCoords).rgb;
+    float brightness = dot(result, vec3(0.2126, 0.7152, 0.0722));
+    if (brightness > threshold) {
+        color = vec4(result, 1.0);
+    } else {
+        color = vec4(vec3(0.0), 1.0);
+    }
+}
+`;
+
+    const BLUR_VERTEX_SHADER_SOURCE = `#version 300 es
+
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 texCoords;
+layout(location = 2) in vec4 color;
+
+out vec2 fragTexCoords;
+
+void main() {
+    gl_Position = vec4(position, 0, 1);
+
+    fragTexCoords = texCoords;
+}
+`;
+
+    const BLUR_FRAGMENT_SHADER_SOURCE = `#version 300 es
+
+precision mediump float;
+
+const float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+
+uniform sampler2D colorTexture;
+uniform bool horizontal;
+
+in vec2 fragTexCoords;
+
+out vec4 color;
+
+void main() {
+    vec2 texelSize = 1.0 / vec2(textureSize(colorTexture, 0));
+    vec3 result = texture(colorTexture, fragTexCoords).rgb * weight[0];
+
+    if (horizontal) {
+        for (int i = 1; i < 5; i++) {
+            result += texture(colorTexture, fragTexCoords + vec2(texelSize.x * float(i), 0.0)).rgb * weight[i];
+            result += texture(colorTexture, fragTexCoords - vec2(texelSize.x * float(i), 0.0)).rgb * weight[i];
+        }
+    } else {
+        for (int i = 1; i < 5; i++) {
+            result += texture(colorTexture, fragTexCoords + vec2(0.0, texelSize.y * float(i))).rgb * weight[i];
+            result += texture(colorTexture, fragTexCoords - vec2(0.0, texelSize.y * float(i))).rgb * weight[i];
+        }
+    }
+
+    color = vec4(result, 1.0);
+}
+`;
+
+    const SCREEN_VERTEX_SHADER_SOURCE = `#version 300 es
+
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 texCoords;
+layout(location = 2) in vec4 color;
+
+out vec2 fragTexCoords;
+
+void main() {
+    gl_Position = vec4(position, 0.0, 1.0);
+
+    fragTexCoords = texCoords;
 }
 `;
 
@@ -257,16 +333,15 @@ void main() {
 precision mediump float;
 
 uniform sampler2D colorTexture;
+uniform sampler2D blurTexture;
 
-in vec2 fragPosition;
 in vec2 fragTexCoords;
-in vec4 fragColor;
 
 out vec4 color;
 
 void main() {
-    color = fragColor * texture(colorTexture, fragTexCoords);
-    color.rgb = pow(color.rgb, vec3(1.0 / 2.2));
+    vec3 result = texture(colorTexture, fragTexCoords).rgb + texture(blurTexture, fragTexCoords).rgb;
+    color = vec4(pow(result, vec3(1.0 / 2.2)), 1.0);
 }
 `;
 
@@ -281,6 +356,12 @@ void main() {
 
     /** @type {ShaderProgram} */
     let sceneShaderProgram = null;
+
+    /** @type {ShaderProgram} */
+    let thresholdShaderProgram = null;
+
+    /** @type {ShaderProgram} */
+    let blurShaderProgram = null;
 
     /** @type {ShaderProgram} */
     let screenShaderProgram = null;
@@ -299,6 +380,12 @@ void main() {
 
     /** @type {Framebuffer} */
     let framebuffer = null;
+
+    /** @type {Framebuffer} */
+    let pingFramebuffer = null;
+
+    /** @type {Framebuffer} */
+    let pongFramebuffer = null;
 
     /** @type {GameObject[]} */
     let gameObjects = [];
@@ -331,10 +418,14 @@ void main() {
         if (context === null) return console.error("Can't create webgl context");
 
         sceneShaderProgram = new ShaderProgram(context, SCENE_VERTEX_SHADER_SOURCE, SCENE_FRAGMENT_SHADER_SOURCE);
+        thresholdShaderProgram = new ShaderProgram(context, THRESHOLD_VERTEX_SHADER_SOURCE, THRESHOLD_FRAGMENT_SHADER_SOURCE);
+        blurShaderProgram = new ShaderProgram(context, BLUR_VERTEX_SHADER_SOURCE, BLUR_FRAGMENT_SHADER_SOURCE);
         screenShaderProgram = new ShaderProgram(context, SCREEN_VERTEX_SHADER_SOURCE, SCREEN_FRAGMENT_SHADER_SOURCE);
         renderer = new Renderer(context, canvas.width, canvas.height);
         framebufferMultisample = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
         framebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
+        pingFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
+        pongFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
 
         const ballImage = new Image();
         ballImage.loading = 'eager';
@@ -456,6 +547,8 @@ void main() {
         renderer.resize(clientWidth, clientHeight);
         framebufferMultisample.resize(clientWidth, clientHeight).attachRenderbuffer(new Renderbuffer(context, clientWidth, clientHeight));
         framebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
+        pingFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
+        pongFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
     }
 
     function update(timestamp) {
@@ -586,9 +679,9 @@ void main() {
 
         gameObjects = gameObjects.filter(gameObject => !objectsToDelete.includes(gameObject));
 
+        framebufferMultisample.bind();
         sceneShaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
         ballTexture?.bind();
-        framebufferMultisample.bind();
         renderer.clear().beginGeometry();
 
         for (const gameObject of gameObjects)
@@ -641,7 +734,6 @@ void main() {
         }
 
         renderer.endGeometry();
-
         whiteTexture?.bind();
         renderer.beginGeometry();
 
@@ -661,22 +753,38 @@ void main() {
 
         renderer.endGeometry();
         framebufferMultisample.unbind();
+        framebufferMultisample.blit(framebuffer);
 
-        context.bindFramebuffer(context.READ_FRAMEBUFFER, framebufferMultisample.handle);
-        context.bindFramebuffer(context.DRAW_FRAMEBUFFER, framebuffer.handle);
-        context.blitFramebuffer(0, 0, framebufferMultisample.width, framebufferMultisample.height, 0, 0, framebuffer.width, framebuffer.height, context.COLOR_BUFFER_BIT, context.LINEAR);
-        context.bindFramebuffer(context.READ_FRAMEBUFFER, null);
-        context.bindFramebuffer(context.DRAW_FRAMEBUFFER, null);
+        thresholdShaderProgram.bind().setUniform('threshold', 0.8);
+        pongFramebuffer.bind();
+        framebuffer.attachment.bind();
+        renderer.beginGeometry();
+        renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
+        renderer.endGeometry();
+        pongFramebuffer.unbind();
 
-        screenShaderProgram.bind().setUniformMatrix('matrix', [
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1,
-        ]);
+        for (let i = 0; i < 4; i++) {
+            blurShaderProgram.bind().setUniform('horizontal', true);
+            pingFramebuffer.bind();
+            pongFramebuffer.attachment.bind();
+            renderer.beginGeometry();
+            renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
+            renderer.endGeometry();
+            pingFramebuffer.unbind();
+
+            blurShaderProgram.bind().setUniform('horizontal', false);
+            pongFramebuffer.bind();
+            pingFramebuffer.attachment.bind();
+            renderer.beginGeometry();
+            renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
+            renderer.endGeometry();
+            pongFramebuffer.unbind();
+        }
 
         context.viewport(0, 0, renderer.width, renderer.height);
-        framebuffer.attachment?.bind();
+        screenShaderProgram.bind().setUniformInteger('blurTexture', 1);
+        framebuffer.attachment.bind();
+        pongFramebuffer.attachment.bind(1);
         renderer.beginGeometry();
         renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
         renderer.endGeometry();

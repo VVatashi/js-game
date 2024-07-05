@@ -116,6 +116,21 @@ class Framebuffer {
         return this;
     }
 
+    /**
+     * @param {Framebuffer} framebuffer
+     */
+    blit(framebuffer) {
+        const { context, width, height } = this;
+
+        context.bindFramebuffer(context.READ_FRAMEBUFFER, this.handle);
+        context.bindFramebuffer(context.DRAW_FRAMEBUFFER, framebuffer.handle);
+        context.blitFramebuffer(0, 0, width, height, 0, 0, framebuffer.width, framebuffer.height, context.COLOR_BUFFER_BIT, context.LINEAR);
+        context.bindFramebuffer(context.READ_FRAMEBUFFER, null);
+        context.bindFramebuffer(context.DRAW_FRAMEBUFFER, null);
+
+        return this;
+    }
+
     delete() {
         const { context, handle } = this;
 
@@ -204,7 +219,22 @@ class ShaderProgram {
         this.bind();
 
         const location = this.getUniformLocation(name);
-        context.uniform1f(location, value);
+        if (typeof value === 'boolean') {
+            context.uniform1i(location, value ? 1 : 0);
+        } else {
+            context.uniform1f(location, value);
+        }
+
+        return this;
+    }
+
+    setUniformInteger(name, value) {
+        const { context } = this;
+
+        this.bind();
+
+        const location = this.getUniformLocation(name);
+        context.uniform1i(location, value);
 
         return this;
     }
