@@ -522,6 +522,31 @@ class Mesh {
     }
 }
 
+class Font {
+    constructor(data, atlasWidth, atlasHeight) {
+        this.glyphs = {};
+
+        const lines = data.split('\n');
+        for (const line of lines) {
+            const values = line.split(',');
+            if (values.length !== 10) continue;
+
+            const charCode = Number(values[0]);
+            const advance = Number(values[1]);
+            const planeLeft = Number(values[2]);
+            const planeBottom = 1.0 - Number(values[3]);
+            const planeRight = Number(values[4]);
+            const planeTop = 1.0 - Number(values[5]);
+            const atlasLeft = Number(values[6]) / atlasWidth;
+            const atlasBottom = 1.0 - Number(values[7]) / atlasHeight;
+            const atlasRight = Number(values[8]) / atlasWidth;
+            const atlasTop = 1.0 - Number(values[9]) / atlasHeight;
+
+            this.glyphs[charCode] = { charCode, advance, planeLeft, planeBottom, planeRight, planeTop, atlasLeft, atlasBottom, atlasRight, atlasTop };
+        }
+    }
+}
+
 class Renderer {
     MAX_VERTICES = 65535;
     VERTEX_ELEMENTS = 8;
@@ -743,6 +768,60 @@ class Renderer {
             dx, dy, u0, v1,
             r, g, b, a
         );
+    }
+
+    /**
+     * @param {Font} font
+     * @param {number} x
+     * @param {number} y
+     * @param {number} charCode
+     * @param {number} size
+     * @param {number} r
+     * @param {number} g
+     * @param {number} b
+     * @param {number} a
+     */
+    drawChar(font, x, y, charCode, size, r, g, b, a) {
+        const glyph = font.glyphs[charCode];
+        if (typeof glyph === 'undefined' || glyph === null) {
+            return this;
+        }
+
+        return this.drawRectangle(
+            x + size * glyph.planeLeft,
+            y + size * glyph.planeTop,
+            size * (glyph.planeRight - glyph.planeLeft),
+            size * (glyph.planeBottom - glyph.planeTop),
+            glyph.atlasLeft, glyph.atlasTop, glyph.atlasRight, glyph.atlasBottom,
+            r, g, b, a
+        );
+    }
+
+    /**
+     * @param {Font} font
+     * @param {number} x
+     * @param {number} y
+     * @param {string} str
+     * @param {number} size
+     * @param {number} r
+     * @param {number} g
+     * @param {number} b
+     * @param {number} a
+     */
+    drawString(font, x, y, str, size, r, g, b, a) {
+        let offset = 0;
+        for (let i = 0; i < str.length; i++) {
+            const charCode = str.charCodeAt(i);
+            const glyph = font.glyphs[charCode];
+            if (typeof glyph === 'undefined' || glyph === null) {
+                continue;
+            }
+
+            this.drawChar(font, x + offset, y, charCode, size, r, g, b, a);
+            offset += size * glyph.advance;
+        }
+
+        return this;
     }
 
     delete() {

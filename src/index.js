@@ -49,8 +49,10 @@
         update(deltaTime) {
             super.update(deltaTime);
 
-            this.x += this.velocityX * deltaTime;
-            this.y += this.velocityY * deltaTime;
+            if (state === 'idle' || state === 'shot') {
+                this.x += this.velocityX * deltaTime;
+                this.y += this.velocityY * deltaTime;
+            }
         }
 
         /**
@@ -89,7 +91,7 @@
                 || this.x + this.radius > levelWidth / 2 && this.velocityX > 0)
                 this.velocityX = -this.velocityX;
 
-            if (state !== 'idle')
+            if (state === 'shot')
                 this.angle += deltaTime / 100;
         }
 
@@ -138,7 +140,7 @@
         constructor(x, y, radius, velocityX, velocityY, texture, type) {
             super(x, y, radius, velocityX, velocityY, texture, type);
 
-            this.lifetime = 10000;
+            this.lifetime = 5000;
         }
 
         /**
@@ -153,6 +155,20 @@
             this.velocityY += 0.000002 * deltaTime * deltaTime;
 
             this.lifetime -= deltaTime;
+        }
+
+        /**
+         * @param {Renderer} renderer
+         */
+        draw(renderer) {
+            const r = Ball.types[this.type][0];
+            const g = Ball.types[this.type][1];
+            const b = Ball.types[this.type][2];
+            const a = (this.lifetime / 5000);
+
+            const scale = renderer.height / 100;
+            const [x, y] = worldToScreen(this.x, this.y);
+            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, r, g, b, a);
         }
     }
 
@@ -225,6 +241,59 @@ out vec4 color;
 
 void main() {
     color = fragColor * texture(colorTexture, fragTexCoords);
+}
+`;
+
+    const FONT_VERTEX_SHADER_SOURCE = `#version 300 es
+
+uniform mat4 matrix;
+
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 texCoords;
+layout(location = 2) in vec4 color;
+
+out vec2 fragTexCoords;
+out vec4 fragColor;
+
+void main() {
+    gl_Position = matrix * vec4(position, 0.0, 1.0);
+
+    fragTexCoords = texCoords;
+    fragColor = color;
+}
+`;
+
+    const FONT_FRAGMENT_SHADER_SOURCE = `#version 300 es
+
+precision mediump float;
+
+uniform sampler2D msdfTexture;
+uniform float screenPxRange;
+uniform float outlineBias;
+
+in vec2 fragTexCoords;
+in vec4 fragColor;
+
+out vec4 color;
+
+float median(float r, float g, float b) {
+    return max(min(r, g), min(max(r, g), b));
+}
+
+void main() {
+    vec4 msd = texture(msdfTexture, fragTexCoords);
+
+    float hardDistance = median(msd.r, msd.g, msd.a);
+    float softDistance = msd.a;
+
+    float inner = screenPxRange * (hardDistance - 0.5) + 0.5;
+    float outer = screenPxRange * (softDistance - 0.5 + outlineBias) + 0.5;
+
+    float innerOpacity = clamp(inner, 0.0, 1.0);
+    float outerOpacity = clamp(outer, 0.0, 1.0);
+
+    // color = vec4(fragColor.rgb, innerOpacity * fragColor.a);
+    color = fragColor * innerOpacity + vec4(vec3(0.0), 1.0) * outerOpacity;
 }
 `;
 
@@ -333,14 +402,15 @@ void main() {
 precision mediump float;
 
 uniform sampler2D colorTexture;
-uniform sampler2D blurTexture;
+// uniform sampler2D blurTexture;
 
 in vec2 fragTexCoords;
 
 out vec4 color;
 
 void main() {
-    vec3 result = texture(colorTexture, fragTexCoords).rgb + texture(blurTexture, fragTexCoords).rgb;
+    // vec3 result = texture(colorTexture, fragTexCoords).rgb + texture(blurTexture, fragTexCoords).rgb;
+    vec3 result = texture(colorTexture, fragTexCoords).rgb;
     color = vec4(pow(result, vec3(1.0 / 2.2)), 1.0);
 }
 `;
@@ -366,11 +436,20 @@ void main() {
     /** @type {ShaderProgram} */
     let screenShaderProgram = null;
 
+    /** @type {ShaderProgram} */
+    let fontShaderProgram = null;
+
     /** @type {Texture} */
     let ballTexture = null;
 
     /** @type {Texture} */
     let whiteTexture = null;
+
+    /** @type {Texture} */
+    let fontTexture = null;
+
+    /** @type {Font} */
+    let font = null;
 
     /** @type {Renderer} */
     let renderer = null;
@@ -382,10 +461,10 @@ void main() {
     let framebuffer = null;
 
     /** @type {Framebuffer} */
-    let pingFramebuffer = null;
+    // let pingFramebuffer = null;
 
     /** @type {Framebuffer} */
-    let pongFramebuffer = null;
+    // let pongFramebuffer = null;
 
     /** @type {GameObject[]} */
     let gameObjects = [];
@@ -398,12 +477,13 @@ void main() {
 
     let nextProjectileType = 0;
 
-    let state = 'idle';
+    let state = 'start';
 
     const ballRadius = 2;
     const levelWidth = 45;
 
     let difficulty = 1;
+    let score = 0;
 
     let cursorX = 0;
     let cursorY = 0;
@@ -418,14 +498,16 @@ void main() {
         if (context === null) return console.error("Can't create webgl context");
 
         sceneShaderProgram = new ShaderProgram(context, SCENE_VERTEX_SHADER_SOURCE, SCENE_FRAGMENT_SHADER_SOURCE);
-        thresholdShaderProgram = new ShaderProgram(context, THRESHOLD_VERTEX_SHADER_SOURCE, THRESHOLD_FRAGMENT_SHADER_SOURCE);
-        blurShaderProgram = new ShaderProgram(context, BLUR_VERTEX_SHADER_SOURCE, BLUR_FRAGMENT_SHADER_SOURCE);
+        // thresholdShaderProgram = new ShaderProgram(context, THRESHOLD_VERTEX_SHADER_SOURCE, THRESHOLD_FRAGMENT_SHADER_SOURCE);
+        // blurShaderProgram = new ShaderProgram(context, BLUR_VERTEX_SHADER_SOURCE, BLUR_FRAGMENT_SHADER_SOURCE);
         screenShaderProgram = new ShaderProgram(context, SCREEN_VERTEX_SHADER_SOURCE, SCREEN_FRAGMENT_SHADER_SOURCE);
+        fontShaderProgram = new ShaderProgram(context, FONT_VERTEX_SHADER_SOURCE, FONT_FRAGMENT_SHADER_SOURCE);
+
         renderer = new Renderer(context, canvas.width, canvas.height);
         framebufferMultisample = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
         framebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
-        pingFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
-        pongFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
+        // pingFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
+        // pongFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
 
         const ballImage = new Image();
         ballImage.loading = 'eager';
@@ -443,6 +525,21 @@ void main() {
             whiteTexture = new Texture(context, context.TEXTURE_2D, whiteImage.width, whiteImage.height, context.SRGB8_ALPHA8);
             whiteTexture.setImage(whiteImage);
             whiteImage.remove();
+        });
+
+        const fontImage = new Image();
+        fontImage.loading = 'eager';
+        fontImage.src = './assets/font.png';
+        fontImage.addEventListener('load', () => {
+            fontTexture = new Texture(context, context.TEXTURE_2D, fontImage.width, fontImage.height, context.RGBA8);
+            fontTexture.setImage(fontImage);
+
+            fetch('./assets/font.csv').then(response => {
+                response.text().then(text => {
+                    font = new Font(text, fontImage.width, fontImage.height);
+                    fontImage.remove();
+                });
+            });
         });
 
         createOrResetLevel();
@@ -492,6 +589,8 @@ void main() {
                 const type = projectile.type;
                 projectile.type = nextProjectileType;
                 nextProjectileType = type;
+            } else if (['start', 'win', 'fail'].includes(state)) {
+                state = 'idle';
             }
 
             showTrajectory = false;
@@ -526,14 +625,11 @@ void main() {
     function createOrResetProjectile() {
         gameObjects = gameObjects.filter(gameObject => gameObject !== projectile);
 
-        let types = getBallTypesOnBoard();
-        if (types.length > 1)
-            types = types.filter(type => type !== nextProjectileType);
-
-        const type = nextProjectileType;
-        nextProjectileType = types.length > 0 ? types[Math.floor(types.length * Math.random())] : 0;
-        gameObjects.push(projectile = new Projectile(0, 95, ballRadius, 0, 0, ballTexture, type));
-        state = 'idle';
+        const typesOnBoard = getBallTypesOnBoard();
+        const possibleNextTypes = typesOnBoard.filter(type => type !== nextProjectileType);
+        const currentType = typesOnBoard.length > 0 ? (typesOnBoard.includes(nextProjectileType) ? nextProjectileType : typesOnBoard[Math.floor(typesOnBoard.length * Math.random())]) : 0;
+        nextProjectileType = possibleNextTypes.length > 0 ? possibleNextTypes[Math.floor(possibleNextTypes.length * Math.random())] : 0;
+        gameObjects.push(projectile = new Projectile(0, 95, ballRadius, 0, 0, ballTexture, currentType));
     }
 
     function resize() {
@@ -547,8 +643,8 @@ void main() {
         renderer.resize(clientWidth, clientHeight);
         framebufferMultisample.resize(clientWidth, clientHeight).attachRenderbuffer(new Renderbuffer(context, clientWidth, clientHeight));
         framebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
-        pingFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
-        pongFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
+        // pingFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
+        // pongFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
     }
 
     function update(timestamp) {
@@ -588,6 +684,8 @@ void main() {
                     firstLayer = firstLayer.filter(gameObject => !linkedSet.has(gameObject));
 
                     for (const ball of [...linkedSet]) {
+                        score += (ball.type + 1);
+
                         // Create exploding ball for removed linked balls
                         gameObjects.push(new ExplodingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ballTexture, ball.type));
 
@@ -635,45 +733,68 @@ void main() {
                         for (const ball of [...detachedSet]) {
                             if (linkedSet.has(ball)) continue;
 
+                            score += (ball.type + 1);
+
                             const velocityX = (2 * Math.random() - 1) * 0.001;
                             const velocityY = ball.velocityY;
                             gameObjects.push(new FallingBall(ball.x, ball.y, ballRadius, velocityX, velocityY, ballTexture, ball.type));
                         }
                     }
+
+                    // Check first layer for orphan balls
+                    const orphansSet = new Set();
+                    for (const ball of firstLayer) {
+                        if (getLinkedBalls(ball).length === 1) {
+                            orphansSet.add(ball);
+
+                            score += (ball.type + 1);
+
+                            // Create falling balls for removed orphan balls
+                            gameObjects.push(new FallingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ballTexture, ball.type));
+                        }
+                    }
+
+                    if (orphansSet.size > 0) {
+                        gameObjects = gameObjects.filter(gameObject => !orphansSet.has(gameObject));
+                        firstLayer = firstLayer.filter(gameObject => !orphansSet.has(gameObject));
+                    }
                 }
 
                 createOrResetProjectile();
+                state = 'idle';
                 break;
             }
         }
 
         // Reset projectile if outside the level
-        if (projectile !== null && (projectile.y < 0 || projectile.y > 100))
+        if (projectile !== null && (projectile.y < 0 || projectile.y > 100)) {
             createOrResetProjectile();
+            state = 'idle';
+        }
 
-        // Reset level if any ball reached bottom
         for (const gameObject of gameObjects) {
             if (gameObject.objectType !== 'Ball') continue;
 
+            // Reset level if any ball reached bottom
             if (gameObject.y + gameObject.radius > 90) {
                 createOrResetLevel();
+                state = 'fail';
                 break;
             }
         }
 
         // Reset level if all balls destroyed
-        if (gameObjects.filter(gameObject => gameObject.objectType === 'Ball').length === 0) {
+        if (gameObjects.filter(gameObject => ['Ball', 'FallingBall', 'ExplodingBall', 'Particle'].includes(gameObject.objectType)).length === 0) {
             difficulty++;
             createOrResetLevel();
+            state = 'win';
         }
 
-        // Remove particles
+        // Remove died objects
         const objectsToDelete = [];
         for (const gameObject of gameObjects) {
-            if (gameObject.objectType === 'Particle' || gameObject.objectType === 'FallingBall' || gameObject.objectType === 'ExplodingBall') {
-                if (gameObject.lifetime < 0) {
-                    objectsToDelete.push(gameObject);
-                }
+            if (['FallingBall', 'ExplodingBall', 'Particle'].includes(gameObject.objectType) && (gameObject.lifetime <= 0 || gameObject.y - gameObject.radius > 100)) {
+                objectsToDelete.push(gameObject);
             }
         }
 
@@ -694,7 +815,7 @@ void main() {
             const b = Ball.types[nextProjectileType][2];
             const a = Ball.types[nextProjectileType][3];
 
-            const nextProjectileRadius = ballRadius * 0.75;
+            const nextProjectileRadius = ballRadius * 0.5;
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(-5, 95);
             renderer.drawRectangleOffCenter(x, y, scale * nextProjectileRadius * 2, scale * nextProjectileRadius * 2, 0, 0, 1, 1, r, g, b, a);
@@ -734,6 +855,8 @@ void main() {
         }
 
         renderer.endGeometry();
+
+        sceneShaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
         whiteTexture?.bind();
         renderer.beginGeometry();
 
@@ -752,10 +875,40 @@ void main() {
         }
 
         renderer.endGeometry();
+
+        // Draw text
+        if (font !== null) {
+            const fontSize = 32;
+            const atlasPxRange = 8;
+            const atlasGlyphSize = 40;
+            fontShaderProgram.bind()
+                .setUniformMatrix('matrix', renderer.matrix)
+                .setUniform('screenPxRange', Math.max(2, fontSize * atlasPxRange / atlasGlyphSize))
+                .setUniform('outlineBias', 0.25);
+
+            fontTexture.bind();
+            renderer.beginGeometry();
+
+            const scale = renderer.height / 100;
+            renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, 0, score.toString().padStart(6, '0'), fontSize, 1, 1, 1, 1);
+
+            if (state === 'start') {
+                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 1.5, '   Нажмите чтобы', fontSize, 1, 1, 1, 1);
+                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 0.5, '       начать игру', fontSize, 1, 1, 1, 1);
+            } else if (['win', 'fail'].includes(state)) {
+                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 3.5, '        Уровень ' + difficulty, fontSize, 1, 1, 1, 1);
+                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 1.5, '   Нажмите чтобы', fontSize, 1, 1, 1, 1);
+                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 0.5, '       продолжить', fontSize, 1, 1, 1, 1);
+            }
+
+            renderer.endGeometry();
+        }
+
         framebufferMultisample.unbind();
         framebufferMultisample.blit(framebuffer);
 
-        thresholdShaderProgram.bind().setUniform('threshold', 0.8);
+        // Bloom
+        /*thresholdShaderProgram.bind().setUniform('threshold', 0.7);
         pongFramebuffer.bind();
         framebuffer.attachment.bind();
         renderer.beginGeometry();
@@ -779,12 +932,13 @@ void main() {
             renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
             renderer.endGeometry();
             pongFramebuffer.unbind();
-        }
+        }*/
 
         context.viewport(0, 0, renderer.width, renderer.height);
-        screenShaderProgram.bind().setUniformInteger('blurTexture', 1);
+        screenShaderProgram.bind();
+        // screenShaderProgram.setUniformInteger('blurTexture', 1);
         framebuffer.attachment.bind();
-        pongFramebuffer.attachment.bind(1);
+        // pongFramebuffer.attachment.bind(1);
         renderer.beginGeometry();
         renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
         renderer.endGeometry();
