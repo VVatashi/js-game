@@ -824,6 +824,43 @@ class Renderer {
         return this;
     }
 
+    /**
+     * @param {Font} font
+     * @param {number} x
+     * @param {number} y
+     * @param {number} maxWidth
+     * @param {string} str
+     * @param {number} size
+     * @param {number} r
+     * @param {number} g
+     * @param {number} b
+     * @param {number} a
+     */
+    drawStringOffCenter(font, x, y, str, size, r, g, b, a) {
+        const width = this.measureString(font, str, size);
+        return this.drawString(font, x - width / 2, y, str, size, r, g, b, a);
+    }
+
+    /**
+     * @param {Font} font
+     * @param {string} str
+     * @param {number} size
+     */
+    measureString(font, str, size) {
+        let width = 0;
+        for (let i = 0; i < str.length; i++) {
+            const charCode = str.charCodeAt(i);
+            const glyph = font.glyphs[charCode];
+            if (typeof glyph === 'undefined' || glyph === null) {
+                continue;
+            }
+
+            width += size * glyph.advance;
+        }
+
+        return width;
+    }
+
     delete() {
         this.mesh.delete();
     }

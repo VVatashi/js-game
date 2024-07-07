@@ -890,15 +890,17 @@ void main() {
             renderer.beginGeometry();
 
             const scale = renderer.height / 100;
-            renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, 0, score.toString().padStart(6, '0'), fontSize, 1, 1, 1, 1);
+            const scoreStr = score.toString().padStart(6, '0') + ' ';
+            const scoreWidth = renderer.measureString(font, scoreStr, fontSize);
+            renderer.drawString(font, renderer.width / 2 + levelWidth / 2 * scale - scoreWidth, 0, scoreStr, fontSize, 1, 1, 1, 1);
 
             if (state === 'start') {
-                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 1.5, '   Нажмите чтобы', fontSize, 1, 1, 1, 1);
-                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 0.5, '       начать игру', fontSize, 1, 1, 1, 1);
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 1.5, 'Нажмите чтобы', fontSize, 1, 1, 1, 1);
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, 'начать игру', fontSize, 1, 1, 1, 1);
             } else if (['win', 'fail'].includes(state)) {
-                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 3.5, '        Уровень ' + difficulty, fontSize, 1, 1, 1, 1);
-                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 1.5, '   Нажмите чтобы', fontSize, 1, 1, 1, 1);
-                renderer.drawString(font, renderer.width / 2 - levelWidth / 2 * scale + fontSize / 2, renderer.height / 2 - fontSize * 0.5, '       продолжить', fontSize, 1, 1, 1, 1);
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 3.5, 'Уровень ' + difficulty, fontSize, 1, 1, 1, 1);
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 1.5, 'Нажмите чтобы', fontSize, 1, 1, 1, 1);
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, 'продолжить', fontSize, 1, 1, 1, 1);
             }
 
             renderer.endGeometry();
