@@ -88,8 +88,10 @@
             super.update(deltaTime);
 
             if (this.x - this.radius < -levelWidth / 2 && this.velocityX < 0
-                || this.x + this.radius > levelWidth / 2 && this.velocityX > 0)
+                || this.x + this.radius > levelWidth / 2 && this.velocityX > 0) {
                 this.velocityX = -this.velocityX;
+                playImpactSound();
+            }
 
             if (state === 'shot')
                 this.angle += deltaTime / 100;
@@ -466,6 +468,14 @@ void main() {
     /** @type {Framebuffer} */
     // let pongFramebuffer = null;
 
+    /** @type {AudioSystem} */
+    let audioSystem = null
+
+    /** @type {AudioBuffer[]} */
+    let impactSounds = [];
+
+    let nextImpactSound = 0;
+
     /** @type {GameObject[]} */
     let gameObjects = [];
 
@@ -596,6 +606,32 @@ void main() {
             showTrajectory = false;
         });
 
+        document.addEventListener('click', () => {
+            if (audioSystem !== null) return;
+
+            // Init audio system
+            audioSystem = new AudioSystem();
+            audioSystem.resume();
+
+            // Load and play bgm
+            fetch('./assets/bgm.mp3')
+                .then(response => response.arrayBuffer())
+                .then(buffer => audioSystem.context.decodeAudioData(buffer))
+                .then(decoded => audioSystem.play(decoded, true));
+
+            // Load impact sounds
+            for (const url of [
+                './assets/impactGlass_light_004.mp3',
+                './assets/impactGlass_medium_002.mp3',
+                './assets/impactGlass_medium_004.mp3',
+            ]) {
+                fetch(url)
+                    .then(response => response.arrayBuffer())
+                    .then(buffer => audioSystem.context.decodeAudioData(buffer))
+                    .then(decoded => impactSounds.push(decoded));
+            }
+        });
+
         document.addEventListener('contextmenu', event => {
             event.preventDefault();
         });
@@ -673,6 +709,8 @@ void main() {
                     x += (offsetX > 0 ? 2 * gameObject.radius : -2 * gameObject.radius);
                 }
 
+                playImpactSound();
+
                 // Add ball on the contact point
                 const ball = new Ball(x, y, gameObject.radius, gameObject.velocityX, gameObject.velocityY, ballTexture, projectile.type);
                 gameObjects.push(ball);
@@ -688,6 +726,7 @@ void main() {
 
                         // Create exploding ball for removed linked balls
                         gameObjects.push(new ExplodingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ballTexture, ball.type));
+                        setTimeout(playImpactSound, Math.random() * 100);
 
                         // Create particles for removed linked balls
                         for (let i = 0; i < 10; i++) {
@@ -946,6 +985,12 @@ void main() {
         renderer.endGeometry();
 
         requestAnimationFrame(update);
+    }
+
+    function playImpactSound() {
+        if (impactSounds.length === 0) return;
+
+        audioSystem.play(impactSounds[nextImpactSound++ % impactSounds.length]);
     }
 
     function getLinkedBalls(ball) {
