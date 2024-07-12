@@ -15,22 +15,15 @@
 
     class Ball extends GameObject {
         static types = [
-            [1, 1, 1, 1],
-            [1, 1, 1, 1],
-            [1, 1, 1, 1],
-            [1, 1, 1, 1],
-            [1, 1, 1, 1],
+            { texture: 'ball0' },
+            { texture: 'ball1' },
+            { texture: 'ball2' },
+            { texture: 'ball3' },
+            { texture: 'ball4' },
+            { texture: 'ball5' },
+            { texture: 'ball6' },
+            { texture: 'ball7' },
         ];
-        /*  static types = [
-              [1, 0.2, 0.2, 1],
-              [0.2, 1, 0.2, 1],
-              [0.2, 0.2, 1, 1],
-              [1, 1, 0.2, 1],
-              [1, 0.2, 1, 1],
-              [0.2, 1, 1, 1],
-              [1, 1, 1, 1],
-              [0.2, 0.2, 0.2, 1],
-          ];*/
 
         get objectType() { return 'Ball'; }
 
@@ -45,32 +38,13 @@
             this.velocityX = velocityX;
             this.velocityY = velocityY;
 
-            //  this.texture = 'ball';
-
-
             this.type = type;
         }
+
         get texture() {
-            if (this.type === 1) {
-                return 'ball1'
-            }
-            if (this.type === 2) {
-                return 'ball2'
-            }
-            if (this.type === 3) {
-                return 'ball3'
-            }
-            if (this.type === 4) {
-                return 'ball4'
-            }
-            if (this.type === 5) {
-                return 'ball5'
-            }
-            if (this.type === 6) {
-                return 'ball6'
-            }
-            return 'ball'
+            return Ball.types[this.type].texture;
         }
+
         /**
          * @param {number} deltaTime
          */
@@ -89,14 +63,9 @@
         draw(renderer) {
             super.draw(renderer);
 
-            const r = Ball.types[this.type][0];
-            const g = Ball.types[this.type][1];
-            const b = Ball.types[this.type][2];
-            const a = Ball.types[this.type][3];
-
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(this.x, this.y);
-            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, r, g, b, a);
+            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, 1);
         }
     }
 
@@ -129,14 +98,9 @@
          * @param {Renderer} renderer
          */
         draw(renderer) {
-            const r = Ball.types[this.type][0];
-            const g = Ball.types[this.type][1];
-            const b = Ball.types[this.type][2];
-            const a = Ball.types[this.type][3];
-
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(this.x, this.y);
-            renderer.drawRotatedRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, this.angle, 0, 0, 1, 1, r, g, b, a);
+            renderer.drawRotatedRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, this.angle, 0, 0, 1, 1, 1, 1, 1, 1);
         }
     }
 
@@ -191,14 +155,10 @@
          * @param {Renderer} renderer
          */
         draw(renderer) {
-            const r = Ball.types[this.type][0];
-            const g = Ball.types[this.type][1];
-            const b = Ball.types[this.type][2];
-            const a = (this.lifetime / 5000);
-
+            const alpha = (this.lifetime / 5000);
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(this.x, this.y);
-            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, r, g, b, a);
+            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, alpha);
         }
     }
 
@@ -228,14 +188,10 @@
          * @param {Renderer} renderer
          */
         draw(renderer) {
-            const r = Ball.types[this.type][0];
-            const g = Ball.types[this.type][1];
-            const b = Ball.types[this.type][2];
-            const a = (this.lifetime / 200);
-
+            const alpha = (this.lifetime / 200);
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(this.x, this.y);
-            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, r, g, b, a);
+            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, alpha);
         }
     }
 
@@ -412,7 +368,7 @@ void main() {
     let state = 'start';
 
     const ballRadius = 4;
-    const levelWidth = 60;
+    const levelWidth = 45;
 
     let difficulty = 1;
     let score = 0;
@@ -498,7 +454,7 @@ void main() {
 
         const minY = -difficulty;
         for (let y = minY; y < 5; y++)
-            for (let x = -3; x < (y % 2 ? 3 : 4); x++) {
+            for (let x = -2; x < (y % 2 ? 2 : 3); x++) {
                 const type = Math.floor(Math.min(difficulty + 2, Ball.types.length) * Math.random());
                 const gameObject = new Ball(2 * ballRadius * x + (y % 2 ? ballRadius : 0), ballRadius + 2 * ballRadius * y, ballRadius, 0, 0.0005, type);
                 gameObjects.push(gameObject);
@@ -538,33 +494,35 @@ void main() {
         framebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
 
         const [
-            ballImage,
+            ballImage0,
             ballImage1,
             ballImage2,
             ballImage3,
             ballImage4,
             ballImage5,
             ballImage6,
+            ballImage7,
             background,
             whiteImage,
             fontImage,
             fontData
         ] = await Promise.all([
-            loadImage('./assets/ball.png'),
+            loadImage('./assets/ball0.png'),
             loadImage('./assets/ball1.png'),
             loadImage('./assets/ball2.png'),
             loadImage('./assets/ball3.png'),
             loadImage('./assets/ball4.png'),
             loadImage('./assets/ball5.png'),
             loadImage('./assets/ball6.png'),
+            loadImage('./assets/ball7.png'),
             loadImage('./assets/background.png'),
             loadImage('./assets/white.png'),
             loadImage('./assets/font.png'),
             loadText('./assets/font.csv'),
         ]);
 
-        textures['ball'] = new Texture(context, context.TEXTURE_2D, ballImage.width, ballImage.height, context.SRGB8_ALPHA8);
-        textures['ball'].setImage(ballImage);
+        textures['ball0'] = new Texture(context, context.TEXTURE_2D, ballImage0.width, ballImage0.height, context.SRGB8_ALPHA8);
+        textures['ball0'].setImage(ballImage0);
 
         textures['ball1'] = new Texture(context, context.TEXTURE_2D, ballImage1.width, ballImage1.height, context.SRGB8_ALPHA8);
         textures['ball1'].setImage(ballImage1);
@@ -584,12 +542,15 @@ void main() {
         textures['ball6'] = new Texture(context, context.TEXTURE_2D, ballImage6.width, ballImage6.height, context.SRGB8_ALPHA8);
         textures['ball6'].setImage(ballImage6);
 
+        textures['ball7'] = new Texture(context, context.TEXTURE_2D, ballImage7.width, ballImage7.height, context.SRGB8_ALPHA8);
+        textures['ball7'].setImage(ballImage7);
+
         textures['background'] = new Texture(context, context.TEXTURE_2D, background.width, background.height, context.SRGB8_ALPHA8);
         textures['background'].setImage(background);
 
         context.texParameteri(textures['background'].type, context.TEXTURE_WRAP_S, context.REPEAT);
-        context.texParameteri(textures['background'].type, context.TEXTURE_WRAP_R, context.REPEAT);
         context.texParameteri(textures['background'].type, context.TEXTURE_WRAP_T, context.REPEAT);
+        context.texParameteri(textures['background'].type, context.TEXTURE_WRAP_R, context.REPEAT);
 
         textures['white'] = new Texture(context, context.TEXTURE_2D, whiteImage.width, whiteImage.height, context.SRGB8_ALPHA8);
         textures['white'].setImage(whiteImage);
@@ -605,10 +566,6 @@ void main() {
             // Init audio system
             audioSystem = new AudioSystem();
             audioSystem.resume();
-
-            // Load and play bgm
-            /*const bgm = await loadAudio('./assets/bgm.mp3');
-            audioSystem.play(bgm, true)*/
 
             // Load impact sounds
             impactSounds = await Promise.all([
@@ -675,6 +632,9 @@ void main() {
         addEventListener('resize', resize);
 
         requestAnimationFrame(update);
+
+        const ysdk = await window.YSDKPromise;
+        ysdk.features.LoadingAPI?.ready();
     }
 
     function getLinkedBalls(ball) {
@@ -892,12 +852,14 @@ void main() {
         sceneShaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
         renderer.clear();
 
-        textures["background"].bind();
-        renderer.beginGeometry();
-        const [x0, y0] = worldToScreen(-levelWidth / 2, 0);
-        const [x1, y1] = worldToScreen(levelWidth - 8, 100);
-        renderer.drawRectangle(x0, y0, x1 - x0, y1 - y0, 0, 0, 1, 1, 1, 1, 1, 1);
-        renderer.endGeometry();
+        // Draw background
+        {
+            textures["background"].bind();
+            renderer.beginGeometry();
+            const scale = renderer.height / 100;
+            renderer.drawRectangleOffCenter(renderer.width / 2, renderer.height / 2, levelWidth * scale, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
+            renderer.endGeometry();
+        }
 
         const gameObjectsIndexedByTexture = new Map();
         for (const gameObject of gameObjects) {
@@ -918,24 +880,17 @@ void main() {
             renderer.endGeometry();
         }
 
-        // TODO: fix next projectile texture
-        textures[new Ball(0, 0, 0, 0, 0, nextProjectileType).texture].bind();
-        renderer.beginGeometry();
-
         // Draw next projectile type
+        textures[Ball.types[nextProjectileType].texture].bind();
+        renderer.beginGeometry();
         {
-            const r = Ball.types[nextProjectileType][0];
-            const g = Ball.types[nextProjectileType][1];
-            const b = Ball.types[nextProjectileType][2];
-            const a = Ball.types[nextProjectileType][3];
-
             const nextProjectileRadius = ballRadius * 0.5;
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(-5, 95);
-            renderer.drawRectangleOffCenter(x, y, scale * nextProjectileRadius * 2, scale * nextProjectileRadius * 2, 0, 0, 1, 1, r, g, b, a);
+            renderer.drawRectangleOffCenter(x, y, scale * nextProjectileRadius * 2, scale * nextProjectileRadius * 2, 0, 0, 1, 1, 1, 1, 1, 1);
         }
-
         renderer.endGeometry();
+
         textures[projectile.texture].bind();
         renderer.beginGeometry();
 
@@ -978,12 +933,6 @@ void main() {
         // Draw borders
         {
             const scale = renderer.height / 100;
-
-            const [x0, y0] = worldToScreen(-levelWidth / 2, 50);
-            renderer.drawRectangleOffCenter(x0, y0, 0.2 * scale, 100 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
-
-            const [x1, y1] = worldToScreen(levelWidth / 2, 50);
-            renderer.drawRectangleOffCenter(x1, y1, 0.2 * scale, 100 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
 
             const [x2, y2] = worldToScreen(0, 90);
             renderer.drawRectangleOffCenter(x2, y2, levelWidth * scale, 0.2 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
