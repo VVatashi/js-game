@@ -881,6 +881,8 @@ class SpriteBatch {
 
     begin() {
         this.buckets.clear();
+
+        return this;
     }
 
     end() {
@@ -893,6 +895,8 @@ class SpriteBatch {
 
             this.renderer.endGeometry();
         }
+
+        return this;
     }
 
     addCommand(texture, name, args) {

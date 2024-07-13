@@ -452,11 +452,16 @@ void main() {
         return [...types];
     }
 
+    function getNextProjectileType() {
+        const limit = 8;
+        return [...new Set(gameObjects.filter(gameObject => gameObject.objectType === 'Ball').sort((a, b) => b.y - a.y).slice(0, limit).map(gameObject => gameObject.type))];
+    }
+
     function createOrResetProjectile() {
         gameObjects = gameObjects.filter(gameObject => gameObject !== projectile);
 
         const typesOnBoard = getBallTypesOnBoard();
-        const possibleNextTypes = typesOnBoard.filter(type => type !== nextProjectileType);
+        const possibleNextTypes = getNextProjectileType().filter(type => type !== nextProjectileType);
         const currentType = typesOnBoard.length > 0 ? (typesOnBoard.includes(nextProjectileType) ? nextProjectileType : typesOnBoard[Math.floor(typesOnBoard.length * Math.random())]) : 0;
         nextProjectileType = possibleNextTypes.length > 0 ? possibleNextTypes[Math.floor(possibleNextTypes.length * Math.random())] : 0;
         gameObjects.push(projectile = new Projectile(0, 95, ballRadius, 0, 0, currentType));
@@ -883,6 +888,10 @@ void main() {
             const [x, y] = worldToScreen(-7, 95);
             spriteBatch.drawRectangleOffCenter(textures[Ball.types[nextProjectileType].texture], x, y, scale * nextProjectileRadius * 2, scale * nextProjectileRadius * 2, 0, 0, 1, 1, 1, 1, 1, 1);
         }
+
+        spriteBatch.end();
+
+        spriteBatch.begin();
 
         // Draw trajectory
         if (showTrajectory && state === 'idle' && projectile !== null) {
