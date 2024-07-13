@@ -15,14 +15,14 @@
 
     class Ball extends GameObject {
         static types = [
-            { texture: 'ball0' },
-            { texture: 'ball1' },
-            { texture: 'ball2' },
-            { texture: 'ball3' },
-            { texture: 'ball4' },
-            { texture: 'ball5' },
-            { texture: 'ball6' },
-            { texture: 'ball7' },
+            { texture: 'ball0', score: 1 },
+            { texture: 'ball1', score: 2 },
+            { texture: 'ball2', score: 3 },
+            { texture: 'ball3', score: 4 },
+            { texture: 'ball4', score: 5 },
+            { texture: 'ball5', score: 6 },
+            { texture: 'ball6', score: 7 },
+            { texture: 'ball7', score: 8 },
         ];
 
         get objectType() { return 'Ball'; }
@@ -50,6 +50,10 @@
          */
         update(deltaTime) {
             super.update(deltaTime);
+
+            if (paused) {
+                return;
+            }
 
             if (state === 'idle' || state === 'shot') {
                 this.x += this.velocityX * deltaTime;
@@ -83,6 +87,10 @@
          */
         update(deltaTime) {
             super.update(deltaTime);
+
+            if (paused) {
+                return;
+            }
 
             if (this.x - this.radius < -levelWidth / 2 && this.velocityX < 0
                 || this.x + this.radius > levelWidth / 2 && this.velocityX > 0) {
@@ -119,6 +127,10 @@
         update(deltaTime) {
             super.update(deltaTime);
 
+            if (paused) {
+                return;
+            }
+
             this.x += this.velocityX * deltaTime;
             this.y += this.velocityY * deltaTime;
 
@@ -142,6 +154,10 @@
          */
         update(deltaTime) {
             super.update(deltaTime);
+
+            if (paused) {
+                return;
+            }
 
             this.x += this.velocityX * deltaTime;
             this.y += this.velocityY * deltaTime;
@@ -176,6 +192,10 @@
          */
         update(deltaTime) {
             super.update(deltaTime);
+
+            if (paused) {
+                return;
+            }
 
             this.x += this.velocityX * deltaTime;
             this.y += this.velocityY * deltaTime;
@@ -372,11 +392,17 @@ void main() {
 
     let difficulty = 1;
     let score = 0;
+    let levelStartScore = 0;
 
     let cursorX = 0;
     let cursorY = 0;
 
     let showTrajectory = false;
+    let paused = false;
+
+    const LEADERBOARD = 'puzzlebobble';
+
+    let player = null;
 
     async function loadText(url) {
         const response = await fetch(url);
@@ -455,7 +481,7 @@ void main() {
         const minY = -difficulty;
         for (let y = minY; y < 5; y++)
             for (let x = -2; x < (y % 2 ? 2 : 3); x++) {
-                const type = Math.floor(Math.min(difficulty + 2, Ball.types.length) * Math.random());
+                const type = Math.floor(Math.min(difficulty + 3, Ball.types.length) * Math.random());
                 const gameObject = new Ball(2 * ballRadius * x + (y % 2 ? ballRadius : 0), ballRadius + 2 * ballRadius * y, ballRadius, 0, 0.0005, type);
                 gameObjects.push(gameObject);
 
@@ -466,8 +492,6 @@ void main() {
     }
 
     function resize() {
-        document.documentElement.style.setProperty('--doc-height', `${window.innerHeight}px`);
-
         const { clientWidth, clientHeight } = canvas;
 
         canvas.width = clientWidth;
@@ -493,108 +517,91 @@ void main() {
         framebufferMultisample = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
         framebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
 
-        const [
-            ballImage0,
-            ballImage1,
-            ballImage2,
-            ballImage3,
-            ballImage4,
-            ballImage5,
-            ballImage6,
-            ballImage7,
-            background,
-            whiteImage,
-            fontImage,
-            fontData
-        ] = await Promise.all([
-            loadImage('./assets/ball0.png'),
-            loadImage('./assets/ball1.png'),
-            loadImage('./assets/ball2.png'),
-            loadImage('./assets/ball3.png'),
-            loadImage('./assets/ball4.png'),
-            loadImage('./assets/ball5.png'),
-            loadImage('./assets/ball6.png'),
-            loadImage('./assets/ball7.png'),
-            loadImage('./assets/background.png'),
-            loadImage('./assets/white.png'),
-            loadImage('./assets/font.png'),
-            loadText('./assets/font.csv'),
+        await Promise.all([
+            Promise.all([loadImage('./assets/font.png'), loadText('./assets/font.csv')]).then(([fontImage, fontData]) => {
+                textures['font'] = new Texture(context, context.TEXTURE_2D, fontImage.width, fontImage.height, context.RGBA8).setImage(fontImage);
+                font = new Font(fontData, fontImage.width, fontImage.height);
+            }),
+            ...['ball0', 'ball1', 'ball2', 'ball3', 'ball4', 'ball5', 'ball6', 'ball7', 'background', 'rays', 'white']
+                .map(name => loadImage(`./assets/${name}.png`).then(image => textures[name] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.SRGB8_ALPHA8).setImage(image))),
         ]);
 
-        textures['ball0'] = new Texture(context, context.TEXTURE_2D, ballImage0.width, ballImage0.height, context.SRGB8_ALPHA8);
-        textures['ball0'].setImage(ballImage0);
-
-        textures['ball1'] = new Texture(context, context.TEXTURE_2D, ballImage1.width, ballImage1.height, context.SRGB8_ALPHA8);
-        textures['ball1'].setImage(ballImage1);
-
-        textures['ball2'] = new Texture(context, context.TEXTURE_2D, ballImage2.width, ballImage2.height, context.SRGB8_ALPHA8);
-        textures['ball2'].setImage(ballImage2);
-
-        textures['ball3'] = new Texture(context, context.TEXTURE_2D, ballImage3.width, ballImage3.height, context.SRGB8_ALPHA8);
-        textures['ball3'].setImage(ballImage3);
-
-        textures['ball4'] = new Texture(context, context.TEXTURE_2D, ballImage4.width, ballImage4.height, context.SRGB8_ALPHA8);
-        textures['ball4'].setImage(ballImage4);
-
-        textures['ball5'] = new Texture(context, context.TEXTURE_2D, ballImage5.width, ballImage5.height, context.SRGB8_ALPHA8);
-        textures['ball5'].setImage(ballImage5);
-
-        textures['ball6'] = new Texture(context, context.TEXTURE_2D, ballImage6.width, ballImage6.height, context.SRGB8_ALPHA8);
-        textures['ball6'].setImage(ballImage6);
-
-        textures['ball7'] = new Texture(context, context.TEXTURE_2D, ballImage7.width, ballImage7.height, context.SRGB8_ALPHA8);
-        textures['ball7'].setImage(ballImage7);
-
-        textures['background'] = new Texture(context, context.TEXTURE_2D, background.width, background.height, context.SRGB8_ALPHA8);
-        textures['background'].setImage(background);
-
-        context.texParameteri(textures['background'].type, context.TEXTURE_WRAP_S, context.REPEAT);
-        context.texParameteri(textures['background'].type, context.TEXTURE_WRAP_T, context.REPEAT);
-        context.texParameteri(textures['background'].type, context.TEXTURE_WRAP_R, context.REPEAT);
-
-        textures['white'] = new Texture(context, context.TEXTURE_2D, whiteImage.width, whiteImage.height, context.SRGB8_ALPHA8);
-        textures['white'].setImage(whiteImage);
-
-        textures['font'] = new Texture(context, context.TEXTURE_2D, fontImage.width, fontImage.height, context.RGBA8);
-        textures['font'].setImage(fontImage);
-
-        font = new Font(fontData, fontImage.width, fontImage.height);
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                audioSystem?.suspend();
+                paused = true;
+            } else {
+                audioSystem?.resume();
+                paused = false;
+            }
+        });
 
         document.addEventListener('click', async () => {
-            if (audioSystem !== null) return;
+            if (audioSystem === null) {
+                // Init audio system
+                audioSystem = new AudioSystem();
+                audioSystem.resume();
 
-            // Init audio system
-            audioSystem = new AudioSystem();
-            audioSystem.resume();
+                // Load impact sounds
+                impactSounds = await Promise.all([
+                    loadAudio('./assets/impactGlass_light_000.mp3'),
+                    loadAudio('./assets/impactGlass_light_001.mp3'),
+                    loadAudio('./assets/impactGlass_light_002.mp3'),
+                    loadAudio('./assets/impactGlass_light_003.mp3'),
+                    loadAudio('./assets/impactGlass_light_004.mp3'),
+                    loadAudio('./assets/impactGlass_medium_000.mp3'),
+                    loadAudio('./assets/impactGlass_medium_001.mp3'),
+                    loadAudio('./assets/impactGlass_medium_002.mp3'),
+                    loadAudio('./assets/impactGlass_medium_003.mp3'),
+                    loadAudio('./assets/impactGlass_medium_004.mp3'),
+                ]);
+            }
 
-            // Load impact sounds
-            impactSounds = await Promise.all([
-                loadAudio('./assets/impactGlass_light_004.mp3'),
-                loadAudio('./assets/impactGlass_medium_002.mp3'),
-                loadAudio('./assets/impactGlass_medium_004.mp3'),
-            ]);
+            if ('start' === state) {
+                state = 'idle';
+            } else if (['win', 'fail'].includes(state)) {
+                if (typeof window.yandexGamesSDK !== 'undefined') {
+                    audioSystem?.suspend();
+                    paused = true;
+
+                    window.yandexGamesSDK.adv.showFullscreenAdv({
+                        callbacks: {
+                            onClose() {
+                                createOrResetLevel();
+                                audioSystem?.resume();
+                                paused = false;
+                                state = 'start';
+                            },
+                            onError(error) {
+                                console.error(error);
+                            }
+                        }
+                    });
+                } else {
+                    createOrResetLevel();
+                    state = 'start';
+                }
+            }
         });
 
         document.addEventListener('contextmenu', event => event.preventDefault());
 
         document.addEventListener('pointerdown', event => {
+            event.preventDefault();
+
             cursorX = event.clientX;
             cursorY = event.clientY;
 
-            if (event.button === 0 && (cursorY / renderer.height) < 0.9)
-                showTrajectory = true;
-            else
-                showTrajectory = false;
+            showTrajectory = event.button === 0 && (cursorY / renderer.height) < 0.9;
         });
 
         document.addEventListener('pointermove', event => {
+            event.preventDefault();
+
             cursorX = event.clientX;
             cursorY = event.clientY;
 
-            if (event.buttons === 1 && (cursorY / renderer.height) < 0.9)
-                showTrajectory = true;
-            else
-                showTrajectory = false;
+            showTrajectory = event.buttons === 1 && (cursorY / renderer.height) < 0.9;
         });
 
         document.addEventListener('pointerup', event => {
@@ -619,8 +626,6 @@ void main() {
                 const type = projectile.type;
                 projectile.type = nextProjectileType;
                 nextProjectileType = type;
-            } else if (['start', 'win', 'fail'].includes(state)) {
-                state = 'idle';
             }
 
             showTrajectory = false;
@@ -632,9 +637,13 @@ void main() {
         addEventListener('resize', resize);
 
         requestAnimationFrame(update);
+        console.log('Game ready');
 
-        const ysdk = await window.YSDKPromise;
-        ysdk.features.LoadingAPI?.ready();
+        await window.yandexGamesSDKPromise;
+        window.yandexGamesSDK.features.LoadingAPI?.ready();
+        console.log('Yandex Games SDK ready');
+
+        window.yandexGamesSDK.getPlayer({ scopes: false }).then(p => player = p);
     }
 
     function getLinkedBalls(ball) {
@@ -697,120 +706,124 @@ void main() {
         audioSystem.play(impactSounds[nextImpactSound++ % impactSounds.length]);
     }
 
+    const MAX_DELTA_TIME = 1000 / 30;
+
     function update(timestamp) {
-        const deltaTime = (prevTimestamp !== null) ? timestamp - prevTimestamp : 0;
+        const deltaTime = Math.min((prevTimestamp !== null) ? timestamp - prevTimestamp : 0, MAX_DELTA_TIME);
         prevTimestamp = timestamp;
 
         for (const gameObject of gameObjects)
             gameObject.update(deltaTime);
 
-        // Check ball/projectile collision
-        for (const gameObject of gameObjects) {
-            if (gameObject.objectType !== 'Ball') continue;
+        if (state === 'shot') {
+            // Check ball/projectile collision
+            for (const gameObject of gameObjects) {
+                if (gameObject.objectType !== 'Ball') continue;
 
-            const offsetX = projectile.x - gameObject.x;
-            const offsetY = projectile.y - gameObject.y;
-            const distance = magnitude(offsetX, offsetY);
-            if (distance < (gameObject.radius + projectile.radius) * 0.9) {
-                let x = gameObject.x;
-                let y = gameObject.y;
-                if (offsetY * offsetY > offsetX * offsetX) {
-                    x += (offsetX > 0 ? gameObject.radius : -gameObject.radius);
-                    y += 2 * gameObject.radius;
-                } else {
-                    x += (offsetX > 0 ? 2 * gameObject.radius : -2 * gameObject.radius);
+                const offsetX = projectile.x - gameObject.x;
+                const offsetY = projectile.y - gameObject.y;
+                const distance = magnitude(offsetX, offsetY);
+                if (distance < (gameObject.radius + projectile.radius) * 0.9) {
+                    let x = gameObject.x;
+                    let y = gameObject.y;
+                    if (offsetY * offsetY > offsetX * offsetX) {
+                        x += (offsetX > 0 ? gameObject.radius : -gameObject.radius);
+                        y += 2 * gameObject.radius;
+                    } else {
+                        x += (offsetX > 0 ? 2 * gameObject.radius : -2 * gameObject.radius);
+                    }
+
+                    playImpactSound();
+
+                    // Add ball on the contact point
+                    const ball = new Ball(x, y, gameObject.radius, gameObject.velocityX, gameObject.velocityY, projectile.type);
+                    gameObjects.push(ball);
+
+                    const linkedSet = new Set(getLinkedBallsOfSameType(ball));
+                    if (linkedSet.size > 2) {
+                        // Remove linked balls
+                        gameObjects = gameObjects.filter(gameObject => !linkedSet.has(gameObject));
+                        firstLayer = firstLayer.filter(gameObject => !linkedSet.has(gameObject));
+
+                        for (const ball of [...linkedSet]) {
+                            score += Ball.types[ball.type].score;
+
+                            // Create exploding ball for removed linked balls
+                            gameObjects.push(new ExplodingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ball.type));
+                            setTimeout(playImpactSound, Math.random() * 250);
+
+                            // Create particles for removed linked balls
+                            for (let i = 0; i < 10; i++) {
+                                let velocityX = 2 * Math.random() - 1;
+                                let velocityY = 2 * Math.random() - 1;
+                                [velocityX, velocityY] = normalize(velocityX, velocityY);
+
+                                velocityX *= 0.025;
+                                velocityY *= 0.025;
+
+                                const particleRadius = ballRadius * 0.25;
+                                gameObjects.push(new Particle(ball.x, ball.y, particleRadius, velocityX, velocityY, ball.type));
+                            }
+                        }
+
+                        // Find neighbour balls
+                        const neighboursSet = new Set();
+                        for (const ball of [...linkedSet]) {
+                            const ballNeighbours = getNeighbourBalls(ball);
+                            for (const ball of ballNeighbours)
+                                neighboursSet.add(ball);
+                        }
+
+                        // Find detached balls
+                        const detachedSet = new Set();
+                        const firstLayerSet = new Set(firstLayer);
+                        for (const neighbour of [...neighboursSet]) {
+                            const linkedToNeighbour = getLinkedBalls(neighbour);
+                            if (linkedToNeighbour.filter(ball => firstLayerSet.has(ball)).length === 0)
+                                for (const ball of linkedToNeighbour)
+                                    detachedSet.add(ball);
+                        }
+
+                        // Remove detached balls
+                        if (detachedSet.size > 0) {
+                            gameObjects = gameObjects.filter(gameObject => !detachedSet.has(gameObject));
+                            firstLayer = firstLayer.filter(gameObject => !detachedSet.has(gameObject));
+
+                            // Create falling balls for removed detached balls
+                            for (const ball of [...detachedSet]) {
+                                if (linkedSet.has(ball)) continue;
+
+                                score += Ball.types[ball.type].score;
+
+                                const velocityX = (2 * Math.random() - 1) * 0.001;
+                                const velocityY = ball.velocityY;
+                                gameObjects.push(new FallingBall(ball.x, ball.y, ballRadius, velocityX, velocityY, ball.type));
+                            }
+                        }
+
+                        // Check first layer for orphan balls
+                        const orphansSet = new Set();
+                        for (const ball of firstLayer) {
+                            if (getLinkedBalls(ball).length === 1) {
+                                orphansSet.add(ball);
+
+                                score += Ball.types[ball.type].score;
+
+                                // Create falling balls for removed orphan balls
+                                gameObjects.push(new FallingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ball.type));
+                            }
+                        }
+
+                        if (orphansSet.size > 0) {
+                            gameObjects = gameObjects.filter(gameObject => !orphansSet.has(gameObject));
+                            firstLayer = firstLayer.filter(gameObject => !orphansSet.has(gameObject));
+                        }
+                    }
+
+                    createOrResetProjectile();
+                    state = 'idle';
+                    break;
                 }
-
-                playImpactSound();
-
-                // Add ball on the contact point
-                const ball = new Ball(x, y, gameObject.radius, gameObject.velocityX, gameObject.velocityY, projectile.type);
-                gameObjects.push(ball);
-
-                const linkedSet = new Set(getLinkedBallsOfSameType(ball));
-                if (linkedSet.size > 2) {
-                    // Remove linked balls
-                    gameObjects = gameObjects.filter(gameObject => !linkedSet.has(gameObject));
-                    firstLayer = firstLayer.filter(gameObject => !linkedSet.has(gameObject));
-
-                    for (const ball of [...linkedSet]) {
-                        score += (ball.type + 1);
-
-                        // Create exploding ball for removed linked balls
-                        gameObjects.push(new ExplodingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ball.type));
-                        setTimeout(playImpactSound, Math.random() * 250);
-
-                        // Create particles for removed linked balls
-                        for (let i = 0; i < 10; i++) {
-                            let velocityX = 2 * Math.random() - 1;
-                            let velocityY = 2 * Math.random() - 1;
-                            [velocityX, velocityY] = normalize(velocityX, velocityY);
-
-                            velocityX *= 0.025;
-                            velocityY *= 0.025;
-
-                            const particleRadius = ballRadius * 0.25;
-                            gameObjects.push(new Particle(ball.x, ball.y, particleRadius, velocityX, velocityY, ball.type));
-                        }
-                    }
-
-                    // Find neighbour balls
-                    const neighboursSet = new Set();
-                    for (const ball of [...linkedSet]) {
-                        const ballNeighbours = getNeighbourBalls(ball);
-                        for (const ball of ballNeighbours)
-                            neighboursSet.add(ball);
-                    }
-
-                    // Find detached balls
-                    const detachedSet = new Set();
-                    const firstLayerSet = new Set(firstLayer);
-                    for (const neighbour of [...neighboursSet]) {
-                        const linkedToNeighbour = getLinkedBalls(neighbour);
-                        if (linkedToNeighbour.filter(ball => firstLayerSet.has(ball)).length === 0)
-                            for (const ball of linkedToNeighbour)
-                                detachedSet.add(ball);
-                    }
-
-                    // Remove detached balls
-                    if (detachedSet.size > 0) {
-                        gameObjects = gameObjects.filter(gameObject => !detachedSet.has(gameObject));
-                        firstLayer = firstLayer.filter(gameObject => !detachedSet.has(gameObject));
-
-                        // Create falling balls for removed detached balls
-                        for (const ball of [...detachedSet]) {
-                            if (linkedSet.has(ball)) continue;
-
-                            score += (ball.type + 1);
-
-                            const velocityX = (2 * Math.random() - 1) * 0.001;
-                            const velocityY = ball.velocityY;
-                            gameObjects.push(new FallingBall(ball.x, ball.y, ballRadius, velocityX, velocityY, ball.type));
-                        }
-                    }
-
-                    // Check first layer for orphan balls
-                    const orphansSet = new Set();
-                    for (const ball of firstLayer) {
-                        if (getLinkedBalls(ball).length === 1) {
-                            orphansSet.add(ball);
-
-                            score += (ball.type + 1);
-
-                            // Create falling balls for removed orphan balls
-                            gameObjects.push(new FallingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ball.type));
-                        }
-                    }
-
-                    if (orphansSet.size > 0) {
-                        gameObjects = gameObjects.filter(gameObject => !orphansSet.has(gameObject));
-                        firstLayer = firstLayer.filter(gameObject => !orphansSet.has(gameObject));
-                    }
-                }
-
-                createOrResetProjectile();
-                state = 'idle';
-                break;
             }
         }
 
@@ -820,22 +833,33 @@ void main() {
             state = 'idle';
         }
 
-        for (const gameObject of gameObjects) {
-            if (gameObject.objectType !== 'Ball') continue;
+        // Set state to fail if any ball reached bottom
+        if (state === 'idle') {
+            for (const gameObject of gameObjects) {
+                if (gameObject.objectType !== 'Ball') continue;
 
-            // Reset level if any ball reached bottom
-            if (gameObject.y + gameObject.radius > 90) {
-                createOrResetLevel();
-                state = 'fail';
-                break;
+                if (gameObject.y + gameObject.radius > 90) {
+                    score = levelStartScore;
+                    state = 'fail';
+                    break;
+                }
             }
         }
 
-        // Reset level if all balls destroyed
-        if (gameObjects.filter(gameObject => ['Ball', 'FallingBall', 'ExplodingBall', 'Particle'].includes(gameObject.objectType)).length === 0) {
+        // Set state to win if all balls destroyed
+        if (state === 'idle' && gameObjects.filter(gameObject => ['Ball', 'FallingBall', 'ExplodingBall', 'Particle'].includes(gameObject.objectType)).length === 0) {
             difficulty++;
-            createOrResetLevel();
+            levelStartScore = score;
             state = 'win';
+
+            // Submit score
+            if (player !== null && typeof window.yandexGamesSDK !== 'undefined') {
+                window.yandexGamesSDK.isAvailableMethod('leaderboards.setLeaderboardScore').then(result => {
+                    if (!result) return;
+
+                    window.yandexGamesSDK.getLeaderboards().then(leaderboards => leaderboards.setLeaderboardScore(LEADERBOARD, score));
+                })
+            }
         }
 
         // Remove died objects
@@ -926,7 +950,6 @@ void main() {
 
         renderer.endGeometry();
 
-        sceneShaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
         textures['white'].bind();
         renderer.beginGeometry();
 
@@ -938,7 +961,19 @@ void main() {
             renderer.drawRectangleOffCenter(x2, y2, levelWidth * scale, 0.2 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
         }
 
+        if (['start', 'win', 'fail'].includes(state)) {
+            renderer.drawRectangle(0, 0, renderer.width, renderer.height, 0, 0, 1, 1, 0, 0, 0, 0.75);
+        }
+
         renderer.endGeometry();
+
+
+        if (['start', 'win', 'fail'].includes(state)) {
+            textures['rays'].bind();
+            renderer.beginGeometry();
+            renderer.drawRotatedRectangleOffCenter(renderer.width / 2, renderer.height / 2, renderer.height * 0.5, renderer.height * 0.5, timestamp / 10000, 0, 0, 1, 1, 1, 1, 1, 0.5);
+            renderer.endGeometry();
+        }
 
         // Draw text
         if (font !== null) {
@@ -959,12 +994,25 @@ void main() {
             renderer.drawString(font, renderer.width / 2 + levelWidth / 2 * scale - scoreWidth, 0, scoreStr, fontSize, 1, 1, 1, 1);
 
             if (state === 'start') {
-                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 1.5, 'Нажмите чтобы', fontSize, 1, 1, 1, 1);
-                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, 'начать игру', fontSize, 1, 1, 1, 1);
-            } else if (['win', 'fail'].includes(state)) {
-                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 3.5, 'Уровень ' + difficulty, fontSize, 1, 1, 1, 1);
-                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 1.5, 'Нажмите чтобы', fontSize, 1, 1, 1, 1);
-                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, 'продолжить', fontSize, 1, 1, 1, 1);
+                if (difficulty === 1) {
+                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 1.75, 'Нажмите', fontSize, 1, 1, 1, 1);
+                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, 'чтобы начать игру', fontSize, 1, 1, 1, 1);
+                } else {
+                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Уровень ' + difficulty, fontSize, 1, 1, 1, 1);
+
+                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
+                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
+                }
+            } else if (state === 'win') {
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Победа', fontSize, 1, 1, 1, 1);
+
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
+            } else if (state === 'fail') {
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Поражение', fontSize, 1, 1, 1, 1);
+
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
+                renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
             }
 
             renderer.endGeometry();

@@ -12,10 +12,14 @@ class AudioSystem {
 
     resume() {
         const { context } = this;
+        context.resume();
 
-        if (context.state === 'suspended') {
-            context.resume();
-        }
+        return this;
+    }
+
+    suspend() {
+        const { context } = this;
+        context.suspend();
 
         return this;
     }

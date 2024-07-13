@@ -17,14 +17,17 @@
         <canvas class="canvas" id="canvas" draggable="false"></canvas>
     </div>
 
+    <script>
+        window.yandexGamesSDKPromise = new Promise(resolve => window.yandexGamesSDKResolve = resolve);
+        window.initSDK = () => YaGames.init().then(yandexGamesSDK => {
+            window.yandexGamesSDK = yandexGamesSDK;
+            window.yandexGamesSDKResolve(yandexGamesSDK);
+        });
+    </script>
+
     <script src="./src/audio.js"></script>
     <script src="./src/graphics.js"></script>
     <script src="./src/index.js"></script>
-
-    <script>
-        window.YSDKPromise = new Promise(resolve => window.resolveYSDK = resolve);
-        window.initSDK = () => YaGames.init().then(window.resolveYSDK);
-    </script>
 
     <!-- Yandex Games SDK -->
     <script>
