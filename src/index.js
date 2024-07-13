@@ -7,10 +7,7 @@
          */
         update(deltaTime) { }
 
-        /**
-         * @param {Renderer} renderer
-         */
-        draw(renderer) { }
+        draw() { }
     }
 
     class Ball extends GameObject {
@@ -41,10 +38,6 @@
             this.type = type;
         }
 
-        get texture() {
-            return Ball.types[this.type].texture;
-        }
-
         /**
          * @param {number} deltaTime
          */
@@ -61,15 +54,13 @@
             }
         }
 
-        /**
-         * @param {Renderer} renderer
-         */
-        draw(renderer) {
-            super.draw(renderer);
+        draw() {
+            super.draw();
 
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(this.x, this.y);
-            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, 1);
+            const texture = textures[Ball.types[this.type].texture];
+            spriteBatch.drawRectangleOffCenter(texture, x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, 1);
         }
     }
 
@@ -102,13 +93,11 @@
                 this.angle += deltaTime / 100;
         }
 
-        /**
-         * @param {Renderer} renderer
-         */
-        draw(renderer) {
+        draw() {
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(this.x, this.y);
-            renderer.drawRotatedRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, this.angle, 0, 0, 1, 1, 1, 1, 1, 1);
+            const texture = textures[Ball.types[this.type].texture];
+            spriteBatch.drawRotatedRectangleOffCenter(texture, x, y, scale * this.radius * 2, scale * this.radius * 2, this.angle, 0, 0, 1, 1, 1, 1, 1, 1);
         }
     }
 
@@ -167,14 +156,12 @@
             this.lifetime -= deltaTime;
         }
 
-        /**
-         * @param {Renderer} renderer
-         */
-        draw(renderer) {
+        draw() {
             const alpha = (this.lifetime / 5000);
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(this.x, this.y);
-            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, alpha);
+            const texture = textures[Ball.types[this.type].texture];
+            spriteBatch.drawRectangleOffCenter(texture, x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, alpha);
         }
     }
 
@@ -204,14 +191,12 @@
             this.radius *= 1.05;
         }
 
-        /**
-         * @param {Renderer} renderer
-         */
-        draw(renderer) {
+        draw() {
             const alpha = (this.lifetime / 200);
             const scale = renderer.height / 100;
             const [x, y] = worldToScreen(this.x, this.y);
-            renderer.drawRectangleOffCenter(x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, alpha);
+            const texture = textures[Ball.types[this.type].texture];
+            spriteBatch.drawRectangleOffCenter(texture, x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, alpha);
         }
     }
 
@@ -359,6 +344,9 @@ void main() {
 
     /** @type {Renderer} */
     let renderer = null;
+
+    /** @type {SpriteBatch} */
+    let spriteBatch = null;
 
     /** @type {Framebuffer} */
     let framebufferMultisample = null;
@@ -514,6 +502,7 @@ void main() {
         fontShaderProgram = new ShaderProgram(context, FONT_VERTEX_SHADER_SOURCE, FONT_FRAGMENT_SHADER_SOURCE);
 
         renderer = new Renderer(context, canvas.width, canvas.height);
+        spriteBatch = new SpriteBatch(renderer);
         framebufferMultisample = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
         framebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
 
@@ -876,47 +865,24 @@ void main() {
         sceneShaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
         renderer.clear();
 
+        spriteBatch.begin();
+
         // Draw background
         {
-            textures["background"].bind();
-            renderer.beginGeometry();
             const scale = renderer.height / 100;
-            renderer.drawRectangleOffCenter(renderer.width / 2, renderer.height / 2, levelWidth * scale, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
-            renderer.endGeometry();
+            spriteBatch.drawRectangleOffCenter(textures["background"], renderer.width / 2, renderer.height / 2, levelWidth * scale, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
         }
 
-        const gameObjectsIndexedByTexture = new Map();
-        for (const gameObject of gameObjects) {
-            if (gameObjectsIndexedByTexture.has(gameObject.texture)) {
-                gameObjectsIndexedByTexture.get(gameObject.texture).add(gameObject);
-            } else {
-                gameObjectsIndexedByTexture.set(gameObject.texture, new Set([gameObject]));
-            }
-        }
-
-        for (const [texture, gameObjects] of gameObjectsIndexedByTexture.entries()) {
-            textures[texture].bind();
-            renderer.beginGeometry();
-
-            for (const gameObject of [...gameObjects])
-                gameObject.draw(renderer);
-
-            renderer.endGeometry();
-        }
+        for (const gameObject of gameObjects)
+            gameObject.draw();
 
         // Draw next projectile type
-        textures[Ball.types[nextProjectileType].texture].bind();
-        renderer.beginGeometry();
         {
             const nextProjectileRadius = ballRadius * 0.5;
             const scale = renderer.height / 100;
-            const [x, y] = worldToScreen(-5, 95);
-            renderer.drawRectangleOffCenter(x, y, scale * nextProjectileRadius * 2, scale * nextProjectileRadius * 2, 0, 0, 1, 1, 1, 1, 1, 1);
+            const [x, y] = worldToScreen(-7, 95);
+            spriteBatch.drawRectangleOffCenter(textures[Ball.types[nextProjectileType].texture], x, y, scale * nextProjectileRadius * 2, scale * nextProjectileRadius * 2, 0, 0, 1, 1, 1, 1, 1, 1);
         }
-        renderer.endGeometry();
-
-        textures[projectile.texture].bind();
-        renderer.beginGeometry();
 
         // Draw trajectory
         if (showTrajectory && state === 'idle' && projectile !== null) {
@@ -943,37 +909,28 @@ void main() {
                     const trajectoryBallRadius = ballRadius / 2;
                     const scale = renderer.height / 100;
                     const [x1, y1] = worldToScreen(x, y);
-                    renderer.drawRectangleOffCenter(x1, y1, scale * trajectoryBallRadius * 2, scale * trajectoryBallRadius * 2, 0, 0, 1, 1, 1, 1, 1, 0.25);
+                    spriteBatch.drawRectangleOffCenter(textures[Ball.types[projectile.type].texture], x1, y1, scale * trajectoryBallRadius * 2, scale * trajectoryBallRadius * 2, 0, 0, 1, 1, 1, 1, 1, 0.25);
                 }
             }
         }
 
-        renderer.endGeometry();
-
-        textures['white'].bind();
-        renderer.beginGeometry();
-
-        // Draw borders
+        // Draw border
         {
             const scale = renderer.height / 100;
-
             const [x2, y2] = worldToScreen(0, 90);
-            renderer.drawRectangleOffCenter(x2, y2, levelWidth * scale, 0.2 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
+            spriteBatch.drawRectangleOffCenter(textures['white'], x2, y2, levelWidth * scale, 0.2 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
+        }
+
+        // Draw text background
+        if (['start', 'win', 'fail'].includes(state)) {
+            spriteBatch.drawRectangle(textures['white'], 0, 0, renderer.width, renderer.height, 0, 0, 1, 1, 0, 0, 0, 0.75);
         }
 
         if (['start', 'win', 'fail'].includes(state)) {
-            renderer.drawRectangle(0, 0, renderer.width, renderer.height, 0, 0, 1, 1, 0, 0, 0, 0.75);
+            spriteBatch.drawRotatedRectangleOffCenter(textures['rays'], renderer.width / 2, renderer.height / 2, renderer.height * 0.5, renderer.height * 0.5, timestamp / 10000, 0, 0, 1, 1, 1, 1, 1, 0.5);
         }
 
-        renderer.endGeometry();
-
-
-        if (['start', 'win', 'fail'].includes(state)) {
-            textures['rays'].bind();
-            renderer.beginGeometry();
-            renderer.drawRotatedRectangleOffCenter(renderer.width / 2, renderer.height / 2, renderer.height * 0.5, renderer.height * 0.5, timestamp / 10000, 0, 0, 1, 1, 1, 1, 1, 0.5);
-            renderer.endGeometry();
-        }
+        spriteBatch.end();
 
         // Draw text
         if (font !== null) {

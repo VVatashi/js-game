@@ -632,7 +632,11 @@ class Renderer {
         return this;
     }
 
-    addVertex() {
+    addVertex(
+        _x, _y,
+        _u, _v,
+        _r, _g, _b, _a
+    ) {
         const { VERTEX_ELEMENTS, vertexCount, vertices } = this;
 
         for (let i = 0; i < VERTEX_ELEMENTS; i++)
@@ -863,5 +867,89 @@ class Renderer {
 
     delete() {
         this.mesh.delete();
+    }
+}
+
+class SpriteBatch {
+    /**
+     * @param {Renderer} renderer
+     */
+    constructor(renderer) {
+        this.renderer = renderer;
+        this.buckets = new Map();
+    }
+
+    begin() {
+        this.buckets.clear();
+    }
+
+    end() {
+        for (const [texture, commands] of this.buckets.entries()) {
+            texture.bind();
+            this.renderer.beginGeometry();
+
+            for (const { name, args } of commands)
+                this.renderer[name](...args);
+
+            this.renderer.endGeometry();
+        }
+    }
+
+    addCommand(texture, name, args) {
+        const command = { name, args };
+
+        if (this.buckets.has(texture))
+            this.buckets.get(texture).push(command);
+        else
+            this.buckets.set(texture, [command]);
+
+        return this;
+    }
+
+    drawTriangle(
+        texture,
+        _ax, _ay, _au, _av,
+        _bx, _by, _bu, _bv,
+        _cx, _cy, _cu, _cv,
+        _r, _g, _b, _a
+    ) {
+        return this.addCommand(texture, 'drawTriangle', [...arguments].slice(1));
+    }
+
+    drawQuad(
+        texture,
+        _ax, _ay, _au, _av,
+        _bx, _by, _bu, _bv,
+        _cx, _cy, _cu, _cv,
+        _dx, _dy, _du, _dv,
+        _r, _g, _b, _a
+    ) {
+        return this.addCommand(texture, 'drawQuad', [...arguments].slice(1));
+    }
+
+    drawRectangle(
+        texture,
+        _x, _y, _width, _height,
+        _u0, _v0, _u1, _v1,
+        _r, _g, _b, _a) {
+        return this.addCommand(texture, 'drawRectangle', [...arguments].slice(1));
+    }
+
+    drawRectangleOffCenter(
+        texture,
+        _x, _y, _width, _height,
+        _u0, _v0, _u1, _v1,
+        _r, _g, _b, _a
+    ) {
+        return this.addCommand(texture, 'drawRectangleOffCenter', [...arguments].slice(1));
+    }
+
+    drawRotatedRectangleOffCenter(
+        texture,
+        _x, _y, _width, _height, _angle,
+        _u0, _v0, _u1, _v1,
+        _r, _g, _b, _a
+    ) {
+        return this.addCommand(texture, 'drawRotatedRectangleOffCenter', [...arguments].slice(1));
     }
 }
