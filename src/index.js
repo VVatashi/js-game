@@ -643,7 +643,7 @@ void main() {
             if (state === 'idle' && event.button === 0 && (cursorY / renderer.height) < 0.9) {
                 state = 'shot';
 
-                let [clientX, clientY] = screenToWorld(event.clientX, event.clientY);
+                let [clientX, clientY] = screenToWorld(event.clientX, event.clientY + PADDING_BOTTOM);
                 clientY = Math.min(clientY, 95);
 
                 const offsetX = clientX;
