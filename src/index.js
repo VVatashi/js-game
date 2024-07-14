@@ -126,6 +126,9 @@
             this.velocityY += 0.000002 * deltaTime * deltaTime;
 
             this.lifetime -= deltaTime;
+            if (this.lifetime <= 0 || this.y - this.radius > 100) {
+                removeObject(this);
+            }
         }
     }
 
@@ -154,6 +157,9 @@
             this.velocityY += 0.000002 * deltaTime * deltaTime;
 
             this.lifetime -= deltaTime;
+            if (this.lifetime <= 0 || this.y - this.radius > 100) {
+                removeObject(this);
+            }
         }
 
         draw() {
@@ -187,8 +193,11 @@
             this.x += this.velocityX * deltaTime;
             this.y += this.velocityY * deltaTime;
 
-            this.lifetime -= deltaTime;
             this.radius *= 1.05;
+            this.lifetime -= deltaTime;
+            if (this.lifetime <= 0 || this.y - this.radius > 100) {
+                removeObject(this);
+            }
         }
 
         draw() {
@@ -640,13 +649,13 @@ void main() {
         window.yandexGamesSDK.getPlayer({ scopes: false }).then(p => player = p);
     }
 
-    function getLinkedBalls(ball) {
+    function getLinkedBalls(ball, except = []) {
         const linked = new Set([ball]);
         const checked = new Set();
         const queue = [ball];
         while (queue.length > 0) {
             const ball = queue.pop();
-            const neighbours = getNeighbourBalls(ball);
+            const neighbours = getNeighbourBalls(ball).filter(ball => !except.includes(ball));
             for (const neighbour of neighbours) {
                 if (!checked.has(neighbour)) {
                     linked.add(neighbour);
@@ -683,7 +692,7 @@ void main() {
     function getNeighbourBalls(ball) {
         const neighbours = [];
         for (const gameObject of gameObjects) {
-            if (gameObject.objectType !== 'Ball' || gameObject === projectile || gameObject === ball) continue;
+            if (gameObject.objectType !== 'Ball' || gameObject === ball) continue;
 
             const distance = magnitude(ball.x - gameObject.x, ball.y - gameObject.y);
             if (distance < (gameObject.radius + ball.radius) * 1.25) {
@@ -698,6 +707,16 @@ void main() {
         if (impactSounds.length === 0) return;
 
         audioSystem.play(impactSounds[nextImpactSound++ % impactSounds.length]);
+    }
+
+    /** @type {Set<GameObject>} */
+    const objectDeleteQueue = new Set();
+
+    /**
+     * @param {GameObject} gameObject
+     */
+    function removeObject(gameObject) {
+        objectDeleteQueue.add(gameObject);
     }
 
     const MAX_DELTA_TIME = 1000 / 30;
@@ -735,11 +754,9 @@ void main() {
 
                     const linkedSet = new Set(getLinkedBallsOfSameType(ball));
                     if (linkedSet.size > 2) {
-                        // Remove linked balls
-                        gameObjects = gameObjects.filter(gameObject => !linkedSet.has(gameObject));
-                        firstLayer = firstLayer.filter(gameObject => !linkedSet.has(gameObject));
-
                         for (const ball of [...linkedSet]) {
+                            // Remove linked balls
+                            removeObject(ball);
                             score += Ball.types[ball.type].score;
 
                             // Create exploding ball for removed linked balls
@@ -763,32 +780,28 @@ void main() {
                         // Find neighbour balls
                         const neighboursSet = new Set();
                         for (const ball of [...linkedSet]) {
-                            const ballNeighbours = getNeighbourBalls(ball);
+                            const ballNeighbours = getNeighbourBalls(ball).filter(ball => !linkedSet.has(ball));
                             for (const ball of ballNeighbours)
                                 neighboursSet.add(ball);
                         }
 
                         // Find detached balls
                         const detachedSet = new Set();
-                        const firstLayerSet = new Set(firstLayer);
+                        const firstLayerSet = new Set(firstLayer.filter(ball => !linkedSet.has(ball)));
                         for (const neighbour of [...neighboursSet]) {
-                            const linkedToNeighbour = getLinkedBalls(neighbour);
+                            const linkedToNeighbour = getLinkedBalls(neighbour, [...linkedSet]);
                             if (linkedToNeighbour.filter(ball => firstLayerSet.has(ball)).length === 0)
                                 for (const ball of linkedToNeighbour)
                                     detachedSet.add(ball);
                         }
 
-                        // Remove detached balls
-                        if (detachedSet.size > 0) {
-                            gameObjects = gameObjects.filter(gameObject => !detachedSet.has(gameObject));
-                            firstLayer = firstLayer.filter(gameObject => !detachedSet.has(gameObject));
-
-                            // Create falling balls for removed detached balls
+                        if (detachedSet.size) {
                             for (const ball of [...detachedSet]) {
-                                if (linkedSet.has(ball)) continue;
-
+                                // Remove detached balls
+                                removeObject(ball);
                                 score += Ball.types[ball.type].score;
 
+                                // Create falling balls for removed detached balls
                                 const velocityX = (2 * Math.random() - 1) * 0.001;
                                 const velocityY = ball.velocityY;
                                 gameObjects.push(new FallingBall(ball.x, ball.y, ballRadius, velocityX, velocityY, ball.type));
@@ -797,24 +810,23 @@ void main() {
 
                         // Check first layer for orphan balls
                         const orphansSet = new Set();
-                        for (const ball of firstLayer) {
-                            if (getLinkedBalls(ball).length === 1) {
+                        for (const ball of firstLayer.filter(ball => !linkedSet.has(ball)).filter(ball => !detachedSet.has(ball)))
+                            if (getLinkedBalls(ball, [...linkedSet, ...detachedSet]).length === 1)
                                 orphansSet.add(ball);
 
+                        if (orphansSet.size) {
+                            for (const ball of [...orphansSet]) {
+                                // Remove orphan balls
+                                removeObject(ball);
                                 score += Ball.types[ball.type].score;
 
                                 // Create falling balls for removed orphan balls
                                 gameObjects.push(new FallingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ball.type));
                             }
                         }
-
-                        if (orphansSet.size > 0) {
-                            gameObjects = gameObjects.filter(gameObject => !orphansSet.has(gameObject));
-                            firstLayer = firstLayer.filter(gameObject => !orphansSet.has(gameObject));
-                        }
                     }
 
-                    createOrResetProjectile();
+                    setTimeout(createOrResetProjectile);
                     state = 'idle';
                     break;
                 }
@@ -823,7 +835,7 @@ void main() {
 
         // Reset projectile if outside the level
         if (projectile !== null && (projectile.y < 0 || projectile.y > 100)) {
-            createOrResetProjectile();
+            setTimeout(createOrResetProjectile);
             state = 'idle';
         }
 
@@ -856,15 +868,11 @@ void main() {
             }
         }
 
-        // Remove died objects
-        const objectsToDelete = [];
-        for (const gameObject of gameObjects) {
-            if (['FallingBall', 'ExplodingBall', 'Particle'].includes(gameObject.objectType) && (gameObject.lifetime <= 0 || gameObject.y - gameObject.radius > 100)) {
-                objectsToDelete.push(gameObject);
-            }
+        if (objectDeleteQueue.size) {
+            gameObjects = gameObjects.filter(gameObject => !objectDeleteQueue.has(gameObject));
+            firstLayer = firstLayer.filter(gameObject => !objectDeleteQueue.has(gameObject));
+            objectDeleteQueue.clear();
         }
-
-        gameObjects = gameObjects.filter(gameObject => !objectsToDelete.includes(gameObject));
 
         framebufferMultisample.bind();
         sceneShaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
