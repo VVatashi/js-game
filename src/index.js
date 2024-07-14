@@ -57,10 +57,10 @@
         draw() {
             super.draw();
 
-            const scale = renderer.height / 100;
-            const [x, y] = worldToScreen(this.x, this.y);
             const texture = textures[Ball.types[this.type].texture];
-            spriteBatch.drawRectangleOffCenter(texture, x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, 1);
+            const [x, y] = positionWorldToScreen(this.x, this.y);
+            const [w, h] = sizeWorldToScreen(2 * this.radius, 2 * this.radius);
+            spriteBatch.drawRectangleOffCenter(texture, x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
         }
     }
 
@@ -94,10 +94,10 @@
         }
 
         draw() {
-            const scale = renderer.height / 100;
-            const [x, y] = worldToScreen(this.x, this.y);
             const texture = textures[Ball.types[this.type].texture];
-            spriteBatch.drawRotatedRectangleOffCenter(texture, x, y, scale * this.radius * 2, scale * this.radius * 2, this.angle, 0, 0, 1, 1, 1, 1, 1, 1);
+            const [x, y] = positionWorldToScreen(this.x, this.y);
+            const [w, h] = sizeWorldToScreen(2 * this.radius, 2 * this.radius);
+            spriteBatch.drawRotatedRectangleOffCenter(texture, x, y, w, h, this.angle, 0, 0, 1, 1, 1, 1, 1, 1);
         }
     }
 
@@ -163,11 +163,11 @@
         }
 
         draw() {
-            const alpha = (this.lifetime / 5000);
-            const scale = renderer.height / 100;
-            const [x, y] = worldToScreen(this.x, this.y);
             const texture = textures[Ball.types[this.type].texture];
-            spriteBatch.drawRectangleOffCenter(texture, x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, alpha);
+            const [x, y] = positionWorldToScreen(this.x, this.y);
+            const [w, h] = sizeWorldToScreen(2 * this.radius, 2 * this.radius);
+            const alpha = (this.lifetime / 5000);
+            spriteBatch.drawRectangleOffCenter(texture, x, y, w, h, 0, 0, 1, 1, 1, 1, 1, alpha);
         }
     }
 
@@ -201,11 +201,11 @@
         }
 
         draw() {
-            const alpha = (this.lifetime / 200);
-            const scale = renderer.height / 100;
-            const [x, y] = worldToScreen(this.x, this.y);
             const texture = textures[Ball.types[this.type].texture];
-            spriteBatch.drawRectangleOffCenter(texture, x, y, scale * this.radius * 2, scale * this.radius * 2, 0, 0, 1, 1, 1, 1, 1, alpha);
+            const [x, y] = positionWorldToScreen(this.x, this.y);
+            const [w, h] = sizeWorldToScreen(2 * this.radius, 2 * this.radius);
+            const alpha = (this.lifetime / 200);
+            spriteBatch.drawRectangleOffCenter(texture, x, y, w, h, 0, 0, 1, 1, 1, 1, 1, alpha);
         }
     }
 
@@ -426,16 +426,28 @@ void main() {
         return audioSystem.context.decodeAudioData(buffer);
     }
 
-    function worldToScreen(x, y) {
+    function positionWorldToScreen(x, y) {
         const offsetX = renderer.width / 2;
+        const offsetY = -PADDING_BOTTOM;
         const scale = renderer.height / 100;
-        return [scale * x + offsetX, scale * y];
+        return [scale * x + offsetX, scale * y + offsetY];
     }
 
-    function screenToWorld(x, y) {
+    function positionScreenToWorld(x, y) {
         const offsetX = renderer.width / 2;
+        const offsetY = -PADDING_BOTTOM;
         const scale = renderer.height / 100;
-        return [(x - offsetX) / scale, y / scale];
+        return [(x - offsetX) / scale, (y - offsetY) / scale];
+    }
+
+    function sizeWorldToScreen(x, y) {
+        const scale = renderer.height / 100;
+        return [scale * x, scale * y];
+    }
+
+    function sizeScreenToWorld(x, y) {
+        const scale = renderer.height / 100;
+        return [x / scale, y / scale];
     }
 
     function dot(x0, y0, x1, y1) {
@@ -479,8 +491,7 @@ void main() {
         const currentType = typesOnBoard.length > 0 ? (typesOnBoard.includes(nextProjectileType) ? nextProjectileType : typesOnBoard[Math.floor(typesOnBoard.length * Math.random())]) : 0;
         nextProjectileType = possibleNextTypes.length > 0 ? possibleNextTypes[Math.floor(possibleNextTypes.length * Math.random())] : 0;
 
-        const scale = renderer.height / 100;
-        gameObjects.push(projectile = new Projectile(0, 95 - PADDING_BOTTOM / scale, ballRadius, 0, 0, currentType));
+        gameObjects.push(projectile = new Projectile(0, 95, ballRadius, 0, 0, currentType));
     }
 
     function createOrResetLevel() {
@@ -577,11 +588,12 @@ void main() {
                 cursorY = event.clientY;
 
                 const fontSize = 32;
-                const scale = renderer.height / 100;
-                if (cursorX > renderer.width / 2 - levelWidth * scale * 0.8 / 2 && cursorX < renderer.width / 2 + levelWidth * scale * 0.8 / 2) {
-                    if (cursorY > renderer.height / 2 - fontSize * 1.0 - 72 / 2 && cursorY < renderer.height / 2 - fontSize * 1.0 + 72 / 2) {
+                const [w, _h] = sizeWorldToScreen(0.8 * levelWidth, 0);
+
+                if (cursorX > renderer.width / 2 - w / 2 && cursorX < renderer.width / 2 + w / 2) {
+                    if (cursorY > renderer.height / 2 - fontSize - 72 / 2 && cursorY < renderer.height / 2 - fontSize + 72 / 2) {
                         state = 'idle';
-                    } else if (cursorY > renderer.height / 2 + fontSize * 2.0 - 72 / 2 && cursorY < renderer.height / 2 + fontSize * 2.0 + 72 / 2) {
+                    } else if (cursorY > renderer.height / 2 + fontSize * 2 - 72 / 2 && cursorY < renderer.height / 2 + fontSize * 2 + 72 / 2) {
                         difficulty = 1;
                         score = 0;
                         levelStartScore = 0;
@@ -643,7 +655,7 @@ void main() {
             if (state === 'idle' && event.button === 0 && (cursorY / renderer.height) < 0.9) {
                 state = 'shot';
 
-                let [clientX, clientY] = screenToWorld(event.clientX, event.clientY + PADDING_BOTTOM);
+                let [clientX, clientY] = positionScreenToWorld(event.clientX, event.clientY);
                 clientY = Math.min(clientY, 95);
 
                 const offsetX = clientX;
@@ -883,11 +895,8 @@ void main() {
 
         // Set state to fail if any ball reached bottom
         if (state === 'idle') {
-            for (const gameObject of gameObjects) {
-                if (gameObject.objectType !== 'Ball') continue;
-
-                const scale = renderer.height / 100;
-                if (gameObject.y + gameObject.radius > 90 - PADDING_BOTTOM / scale) {
+            for (const gameObject of gameObjects.filter(gameObject => gameObject.objectType === 'Ball')) {
+                if (gameObject.y + gameObject.radius > 90) {
                     score = levelStartScore;
                     state = 'fail';
                     break;
@@ -928,10 +937,21 @@ void main() {
         if (state === 'menu') {
             // Draw background
             {
-                const scale = renderer.height / 100;
                 spriteBatch.begin();
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], renderer.width / 2, renderer.height / 2, 4 * levelWidth * scale, 2 * renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}`], renderer.width / 2, renderer.height / 2, levelWidth * scale, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
+
+                const scale = renderer.height / 100;
+                const x = renderer.width / 2;
+                const y = renderer.height / 2;
+                const w = 4 * levelWidth * scale;
+                const h = 2 * renderer.height;
+
+                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x - w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x + w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+
+                const [w1, _h1] = sizeWorldToScreen(levelWidth, 0);
+                spriteBatch.drawRectangleOffCenter(textures[`background_${background}`], renderer.width / 2, renderer.height / 2, w1, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
+
                 spriteBatch.end();
             }
 
@@ -945,10 +965,11 @@ void main() {
 
             // Draw buttons
             {
-                const scale = renderer.height / 100;
+                const [w, _h] = sizeWorldToScreen(0.8 * levelWidth, 0);
+
                 spriteBatch.begin();
-                spriteBatch.drawRectangleOffCenter(textures['blue_button00'], renderer.width / 2, renderer.height / 2 - fontSize * 1.0, levelWidth * scale * 0.8, 72, 0, 0, 1, 1, 1, 1, 1, 1);
-                spriteBatch.drawRectangleOffCenter(textures['blue_button00'], renderer.width / 2, renderer.height / 2 + fontSize * 2.0, levelWidth * scale * 0.8, 72, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(textures['blue_button00'], renderer.width / 2, renderer.height / 2 - fontSize * 1.0, w, 72, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(textures['blue_button00'], renderer.width / 2, renderer.height / 2 + fontSize * 2.0, w, 72, 0, 0, 1, 1, 1, 1, 1, 1);
                 spriteBatch.end();
             }
 
@@ -977,8 +998,17 @@ void main() {
             // Draw background
             {
                 const scale = renderer.height / 100;
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], renderer.width / 2, renderer.height / 2, 4 * levelWidth * scale, 2 * renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}`], renderer.width / 2, renderer.height / 2, levelWidth * scale, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
+                const x = renderer.width / 2;
+                const y = renderer.height / 2;
+                const w = 4 * levelWidth * scale;
+                const h = 2 * renderer.height;
+
+                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x - w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x + w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+
+                const [w1, _h1] = sizeWorldToScreen(levelWidth, 0);
+                spriteBatch.drawRectangleOffCenter(textures[`background_${background}`], renderer.width / 2, renderer.height / 2, w1, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
             }
 
             for (const gameObject of gameObjects)
@@ -987,9 +1017,9 @@ void main() {
             // Draw next projectile type
             {
                 const nextProjectileRadius = ballRadius * 0.5;
-                const scale = renderer.height / 100;
-                const [x, y] = worldToScreen(-7, 95);
-                spriteBatch.drawRectangleOffCenter(textures[Ball.types[nextProjectileType].texture], x, y - PADDING_BOTTOM, scale * nextProjectileRadius * 2, scale * nextProjectileRadius * 2, 0, 0, 1, 1, 1, 1, 1, 1);
+                const [x, y] = positionWorldToScreen(-7, 95);
+                const [w, h] = sizeWorldToScreen(2 * nextProjectileRadius, 2 * nextProjectileRadius);
+                spriteBatch.drawRectangleOffCenter(textures[Ball.types[nextProjectileType].texture], x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
             }
 
             spriteBatch.end();
@@ -998,7 +1028,7 @@ void main() {
 
             // Draw trajectory
             if (showTrajectory && state === 'idle' && projectile !== null) {
-                let [clientX, clientY] = screenToWorld(cursorX, cursorY + PADDING_BOTTOM);
+                let [clientX, clientY] = positionScreenToWorld(cursorX, cursorY);
                 clientY = Math.min(clientY, 95);
 
                 const offsetX = clientX;
@@ -1019,18 +1049,18 @@ void main() {
 
                     if (i % 100 === 0) {
                         const trajectoryBallRadius = ballRadius / 2;
-                        const scale = renderer.height / 100;
-                        const [x1, y1] = worldToScreen(x, y);
-                        spriteBatch.drawRectangleOffCenter(textures[Ball.types[projectile.type].texture], x1, y1, scale * trajectoryBallRadius * 2, scale * trajectoryBallRadius * 2, 0, 0, 1, 1, 1, 1, 1, 0.25);
+                        const [x1, y1] = positionWorldToScreen(x, y);
+                        const [w, h] = sizeWorldToScreen(2 * trajectoryBallRadius, 2 * trajectoryBallRadius);
+                        spriteBatch.drawRectangleOffCenter(textures[Ball.types[projectile.type].texture], x1, y1, w, h, 0, 0, 1, 1, 1, 1, 1, 0.25);
                     }
                 }
             }
 
             // Draw border
             {
-                const scale = renderer.height / 100;
-                const [x2, y2] = worldToScreen(0, 90);
-                spriteBatch.drawRectangleOffCenter(textures['white'], x2, y2 - PADDING_BOTTOM, levelWidth * scale, 0.2 * scale, 0, 0, 1, 1, 1, 1, 1, 1);
+                const [x, y] = positionWorldToScreen(0, 90);
+                const [w, h] = sizeWorldToScreen(levelWidth, 0.2);
+                spriteBatch.drawRectangleOffCenter(textures['white'], x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
             }
 
             // Draw text background
@@ -1051,37 +1081,36 @@ void main() {
                     .setUniform('screenPxRange', Math.max(2, fontSize * atlasPxRange / atlasGlyphSize))
                     .setUniform('outlineBias', 0.25);
 
-                textures['font'].bind();
-                renderer.beginGeometry();
-
-                const scale = renderer.height / 100;
+                const [x, y] = sizeWorldToScreen(levelWidth / 2, 0);
                 const scoreStr = score.toString().padStart(6, '0') + ' ';
                 const scoreWidth = renderer.measureString(font, scoreStr, fontSize);
-                renderer.drawString(font, renderer.width / 2 + levelWidth / 2 * scale - scoreWidth, 0, scoreStr, fontSize, 1, 1, 1, 1);
+
+                spriteBatch.begin();
+                spriteBatch.drawString(textures['font'], font, x + renderer.width / 2 - scoreWidth, y, scoreStr, fontSize, 1, 1, 1, 1);
 
                 if (state === 'start') {
                     if (difficulty === 1) {
-                        renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 1.75, 'Нажмите', fontSize, 1, 1, 1, 1);
-                        renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, 'чтобы начать игру', fontSize, 1, 1, 1, 1);
+                        spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 1.75, 'Нажмите', fontSize, 1, 1, 1, 1);
+                        spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, 'чтобы начать игру', fontSize, 1, 1, 1, 1);
                     } else {
-                        renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Уровень ' + difficulty, fontSize, 1, 1, 1, 1);
+                        spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Уровень ' + difficulty, fontSize, 1, 1, 1, 1);
 
-                        renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
-                        renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
+                        spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
+                        spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
                     }
                 } else if (state === 'win') {
-                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Победа', fontSize, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Победа', fontSize, 1, 1, 1, 1);
 
-                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
-                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
                 } else if (state === 'fail') {
-                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Поражение', fontSize, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Поражение', fontSize, 1, 1, 1, 1);
 
-                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
-                    renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
                 }
 
-                renderer.endGeometry();
+                spriteBatch.end();
             }
         }
 

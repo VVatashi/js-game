@@ -956,4 +956,62 @@ class SpriteBatch {
     ) {
         return this.addCommand(texture, 'drawRotatedRectangleOffCenter', [...arguments].slice(1));
     }
+
+    /**
+     * @param {Texture} texture
+     * @param {Font} font
+     * @param {number} x
+     * @param {number} y
+     * @param {number} charCode
+     * @param {number} size
+     * @param {number} r
+     * @param {number} g
+     * @param {number} b
+     * @param {number} a
+     */
+    drawChar(texture, _font, _x, _y, _charCode, _size, _r, _g, _b, _a) {
+        return this.addCommand(texture, 'drawChar', [...arguments].slice(1));
+    }
+
+    /**
+     * @param {Texture} texture
+     * @param {Font} font
+     * @param {number} x
+     * @param {number} y
+     * @param {string} str
+     * @param {number} size
+     * @param {number} r
+     * @param {number} g
+     * @param {number} b
+     * @param {number} a
+     */
+    drawString(texture, _font, _x, _y, _str, _size, _r, _g, _b, _a) {
+        return this.addCommand(texture, 'drawString', [...arguments].slice(1));
+    }
+
+    /**
+     * @param {Texture} texture
+     * @param {Font} font
+     * @param {number} x
+     * @param {number} y
+     * @param {number} maxWidth
+     * @param {string} str
+     * @param {number} size
+     * @param {number} r
+     * @param {number} g
+     * @param {number} b
+     * @param {number} a
+     */
+    drawStringOffCenter(texture, _font, _x, _y, _str, _size, _r, _g, _b, _a) {
+        return this.addCommand(texture, 'drawStringOffCenter', [...arguments].slice(1));
+    }
+
+    /**
+     * @param {Font} font
+     * @param {string} str
+     * @param {number} size
+     */
+    measureString(font, str, size) {
+        return this.renderer.measureString(font, str, size);
+    }
 }
