@@ -30,6 +30,9 @@
             this.x = x;
             this.y = y;
 
+            this.offsetX = 0;
+            this.offsetY = 0;
+
             this.radius = radius;
 
             this.velocityX = velocityX;
@@ -52,6 +55,24 @@
                 this.x += this.velocityX * deltaTime;
                 this.y += this.velocityY * deltaTime;
             }
+
+            if (projectile !== null && state === 'shot') {
+                const distanceX = projectile.x - this.x;
+                const distanceY = projectile.y - this.y;
+                const distance = magnitude(distanceX, distanceY);
+                const [directionX, directionY] = normalize(distanceX, distanceY);
+                if (distance < 30) {
+                    this.offsetX = 0.9 * this.offsetX + 0.1 * (-250 / (distanceX * distanceX + distanceY * distanceY) * directionX);
+                    this.offsetY = 0.9 * this.offsetY + 0.1 * (-250 / (distanceX * distanceX + distanceY * distanceY) * directionY);
+                } else {
+                    this.offsetX *= 0.975;
+                    this.offsetY *= 0.975;
+                }
+            } else {
+                this.offsetX *= 0.975;
+                this.offsetY *= 0.975;
+            }
+
         }
 
         draw() {
@@ -60,7 +81,7 @@
             const texture = textures[Ball.types[this.type].texture];
             const [x, y] = positionWorldToScreen(this.x, this.y);
             const [w, h] = sizeWorldToScreen(2 * this.radius, 2 * this.radius);
-            spriteBatch.drawRectangleOffCenter(texture, x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+            spriteBatch.drawRectangleOffCenter(texture, x + this.offsetX, y + this.offsetY, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
         }
     }
 
@@ -296,6 +317,54 @@ void main() {
 }
 `;
 
+    const BLUR_VERTEX_SHADER_SOURCE = `#version 300 es
+
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 texCoords;
+layout(location = 2) in vec4 color;
+
+out vec2 fragTexCoords;
+
+void main() {
+    gl_Position = vec4(position, 0, 1);
+
+    fragTexCoords = texCoords;
+}
+`;
+
+    const BLUR_FRAGMENT_SHADER_SOURCE = `#version 300 es
+
+precision mediump float;
+
+const float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+
+uniform sampler2D colorTexture;
+uniform bool horizontal;
+
+in vec2 fragTexCoords;
+
+out vec4 color;
+
+void main() {
+    vec2 texelSize = 1.0 / vec2(textureSize(colorTexture, 0));
+    vec3 result = texture(colorTexture, fragTexCoords).rgb * weight[0];
+
+    if (horizontal) {
+        for (int i = 1; i < 5; i++) {
+            result += texture(colorTexture, fragTexCoords + vec2(texelSize.x * float(i), 0.0)).rgb * weight[i];
+            result += texture(colorTexture, fragTexCoords - vec2(texelSize.x * float(i), 0.0)).rgb * weight[i];
+        }
+    } else {
+        for (int i = 1; i < 5; i++) {
+            result += texture(colorTexture, fragTexCoords + vec2(0.0, texelSize.y * float(i))).rgb * weight[i];
+            result += texture(colorTexture, fragTexCoords - vec2(0.0, texelSize.y * float(i))).rgb * weight[i];
+        }
+    }
+
+    color = vec4(result, 1.0);
+}
+`;
+
     const SCREEN_VERTEX_SHADER_SOURCE = `#version 300 es
 
 layout(location = 0) in vec2 position;
@@ -316,13 +385,16 @@ void main() {
 precision mediump float;
 
 uniform sampler2D colorTexture;
+uniform sampler2D blurTexture;
+
+uniform float time;
 
 in vec2 fragTexCoords;
 
 out vec4 color;
 
 void main() {
-    vec3 result = texture(colorTexture, fragTexCoords).rgb;
+    vec3 result = texture(colorTexture, fragTexCoords).rgb + ((sin(8.0 * time) + 1.0) / 2.0) * texture(blurTexture, fragTexCoords).rgb;
     color = vec4(pow(result, vec3(1.0 / 2.2)), 1.0);
 }
 `;
@@ -345,6 +417,9 @@ void main() {
     /** @type {ShaderProgram} */
     let fontShaderProgram = null;
 
+    /** @type {ShaderProgram} */
+    let blurShaderProgram = null;
+
     /** @type {Object.<string, Texture>} */
     const textures = {};
 
@@ -362,6 +437,12 @@ void main() {
 
     /** @type {Framebuffer} */
     let framebuffer = null;
+
+    /** @type {Framebuffer} */
+    let pingFramebuffer = null;
+
+    /** @type {Framebuffer} */
+    let pongFramebuffer = null;
 
     /** @type {AudioSystem} */
     let audioSystem = null
@@ -522,6 +603,8 @@ void main() {
         renderer.resize(clientWidth, clientHeight);
         framebufferMultisample.resize(clientWidth, clientHeight).attachRenderbuffer(new Renderbuffer(context, clientWidth, clientHeight));
         framebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
+        pingFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
+        pongFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
     }
 
     async function main() {
@@ -534,11 +617,14 @@ void main() {
         sceneShaderProgram = new ShaderProgram(context, SCENE_VERTEX_SHADER_SOURCE, SCENE_FRAGMENT_SHADER_SOURCE);
         screenShaderProgram = new ShaderProgram(context, SCREEN_VERTEX_SHADER_SOURCE, SCREEN_FRAGMENT_SHADER_SOURCE);
         fontShaderProgram = new ShaderProgram(context, FONT_VERTEX_SHADER_SOURCE, FONT_FRAGMENT_SHADER_SOURCE);
+        blurShaderProgram = new ShaderProgram(context, BLUR_VERTEX_SHADER_SOURCE, BLUR_FRAGMENT_SHADER_SOURCE);
 
         renderer = new Renderer(context, canvas.width, canvas.height);
         spriteBatch = new SpriteBatch(renderer);
         framebufferMultisample = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
         framebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
+        pingFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
+        pongFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
 
         await Promise.all([
             Promise.all([loadImage('./assets/font.png'), loadText('./assets/font.csv')]).then(([fontImage, fontData]) => {
@@ -548,7 +634,7 @@ void main() {
             ...[
                 'ball0', 'ball1', 'ball2', 'ball3', 'ball4', 'ball5', 'ball6', 'ball7',
                 'background_0', 'background_0_blur', 'background_1', 'background_1_blur', 'background_2', 'background_2_blur',
-                'rays', 'white', 'blue_button00',
+                'rays', 'white', 'blue_button00', 'circle_05',
             ].map(name => loadImage(`./assets/${name}.png`).then(image => textures[name] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.SRGB8_ALPHA8).setImage(image))),
         ]);
 
@@ -637,7 +723,8 @@ void main() {
             cursorX = event.clientX;
             cursorY = event.clientY;
 
-            showTrajectory = event.button === 0 && (cursorY / renderer.height) < 0.9;
+            const [_x, y] = positionScreenToWorld(cursorX, cursorY);
+            showTrajectory = event.button === 0 && y < 90;
         });
 
         document.addEventListener('pointermove', event => {
@@ -646,20 +733,22 @@ void main() {
             cursorX = event.clientX;
             cursorY = event.clientY;
 
-            showTrajectory = event.buttons === 1 && (cursorY / renderer.height) < 0.9;
+            const [_x, y] = positionScreenToWorld(cursorX, cursorY);
+            showTrajectory = event.buttons === 1 && y < 90;
         });
 
         document.addEventListener('pointerup', event => {
             event.preventDefault();
 
-            if (state === 'idle' && event.button === 0 && (cursorY / renderer.height) < 0.9) {
+            cursorX = event.clientX;
+            cursorY = event.clientY;
+
+            const [x, y] = positionScreenToWorld(cursorX, cursorY);
+            if (state === 'idle' && event.button === 0 && y < 90) {
                 state = 'shot';
 
-                let [clientX, clientY] = positionScreenToWorld(event.clientX, event.clientY);
-                clientY = Math.min(clientY, 95);
-
-                const offsetX = clientX;
-                const offsetY = clientY - 100;
+                const offsetX = x;
+                const offsetY = Math.min(y, 95) - 100;
 
                 const [directionX, directionY] = normalize(offsetX, offsetY);
 
@@ -667,7 +756,7 @@ void main() {
 
                 projectile.velocityX = directionX * speed;
                 projectile.velocityY = directionY * speed;
-            } else if (state === 'idle' && (event.button === 2 || event.button === 0 && (cursorY / renderer.height) >= 0.9)) {
+            } else if (state === 'idle' && (event.button === 2 || event.button === 0 && y >= 90)) {
                 const type = projectile.type;
                 projectile.type = nextProjectileType;
                 nextProjectileType = type;
@@ -776,6 +865,8 @@ void main() {
     const MAX_DELTA_TIME = 1000 / 30;
 
     function update(timestamp) {
+        requestAnimationFrame(update);
+
         const deltaTime = Math.min((prevTimestamp !== null) ? timestamp - prevTimestamp : 0, MAX_DELTA_TIME);
         prevTimestamp = timestamp;
 
@@ -815,7 +906,6 @@ void main() {
 
                             // Create exploding ball for removed linked balls
                             gameObjects.push(new ExplodingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ball.type));
-                            setTimeout(playImpactSound, Math.random() * 250);
 
                             // Create particles for removed linked balls
                             for (let i = 0; i < 10; i++) {
@@ -829,6 +919,12 @@ void main() {
                                 const particleRadius = ballRadius * 0.25;
                                 gameObjects.push(new Particle(ball.x, ball.y, particleRadius, velocityX, velocityY, ball.type));
                             }
+                        }
+
+                        let timeOffset = 0;
+                        for (const ball of [...linkedSet]) {
+                            timeOffset += 50 + Math.random() * 50;
+                            setTimeout(playImpactSound, timeOffset);
                         }
 
                         // Find neighbour balls
@@ -893,6 +989,12 @@ void main() {
             state = 'idle';
         }
 
+        if (objectDeleteQueue.size) {
+            gameObjects = gameObjects.filter(gameObject => !objectDeleteQueue.has(gameObject));
+            firstLayer = firstLayer.filter(gameObject => !objectDeleteQueue.has(gameObject));
+            objectDeleteQueue.clear();
+        }
+
         // Set state to fail if any ball reached bottom
         if (state === 'idle') {
             for (const gameObject of gameObjects.filter(gameObject => gameObject.objectType === 'Ball')) {
@@ -924,15 +1026,9 @@ void main() {
             }
         }
 
-        if (objectDeleteQueue.size) {
-            gameObjects = gameObjects.filter(gameObject => !objectDeleteQueue.has(gameObject));
-            firstLayer = firstLayer.filter(gameObject => !objectDeleteQueue.has(gameObject));
-            objectDeleteQueue.clear();
-        }
-
         framebufferMultisample.bind();
+        renderer.clear(Math.pow(0.63, 2.2), Math.pow(0.88, 2.2), Math.pow(0.98, 2.2), 1);
         sceneShaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
-        renderer.clear();
 
         if (state === 'menu') {
             // Draw background
@@ -1022,39 +1118,8 @@ void main() {
                 spriteBatch.drawRectangleOffCenter(textures[Ball.types[nextProjectileType].texture], x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
             }
 
-            spriteBatch.end();
-
-            spriteBatch.begin();
-
-            // Draw trajectory
-            if (showTrajectory && state === 'idle' && projectile !== null) {
-                let [clientX, clientY] = positionScreenToWorld(cursorX, cursorY);
-                clientY = Math.min(clientY, 95);
-
-                const offsetX = clientX;
-                const offsetY = clientY - 100;
-
-                let [directionX, directionY] = normalize(offsetX, offsetY);
-
-                let x = projectile.x;
-                let y = projectile.y;
-
-                for (let i = 1; i <= 1000; i++) {
-                    x += directionX / 10;
-                    y += directionY / 10;
-
-                    if (x - projectile.radius < -levelWidth / 2 || x + projectile.radius > levelWidth / 2) {
-                        directionX = -directionX;
-                    }
-
-                    if (i % 100 === 0) {
-                        const trajectoryBallRadius = ballRadius / 2;
-                        const [x1, y1] = positionWorldToScreen(x, y);
-                        const [w, h] = sizeWorldToScreen(2 * trajectoryBallRadius, 2 * trajectoryBallRadius);
-                        spriteBatch.drawRectangleOffCenter(textures[Ball.types[projectile.type].texture], x1, y1, w, h, 0, 0, 1, 1, 1, 1, 1, 0.25);
-                    }
-                }
-            }
+            if (showTrajectory && state === 'idle' && projectile !== null)
+                drawTrajectory();
 
             // Draw border
             {
@@ -1117,14 +1182,81 @@ void main() {
         framebufferMultisample.unbind();
         framebufferMultisample.blit(framebuffer);
 
+        framebufferMultisample.bind();
+        renderer.clear(0, 0, 0, 0);
+        sceneShaderProgram.bind().setUniformMatrix('matrix', renderer.matrix);
+
+        if (showTrajectory && state === 'idle' && projectile !== null) {
+            spriteBatch.begin();
+            projectile.draw();
+            drawTrajectory();
+            spriteBatch.end();
+        }
+
+        framebufferMultisample.unbind();
+        framebufferMultisample.blit(pongFramebuffer);
+
+        for (let i = 0; i < 4; i++) {
+            blurShaderProgram.bind().setUniform('horizontal', true);
+            pingFramebuffer.bind();
+            pongFramebuffer.attachment.bind();
+            renderer.beginGeometry();
+            renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
+            renderer.endGeometry();
+            pingFramebuffer.unbind();
+
+            blurShaderProgram.bind().setUniform('horizontal', false);
+            pongFramebuffer.bind();
+            pingFramebuffer.attachment.bind();
+            renderer.beginGeometry();
+            renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
+            renderer.endGeometry();
+            pongFramebuffer.unbind();
+        }
+
         context.viewport(0, 0, renderer.width, renderer.height);
-        screenShaderProgram.bind();
+        screenShaderProgram.bind().setUniformInteger('blurTexture', 1).setUniform('time', timestamp / 1000);
         framebuffer.attachment.bind();
+        pongFramebuffer.attachment.bind(1);
         renderer.beginGeometry();
         renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
         renderer.endGeometry();
+    }
 
-        requestAnimationFrame(update);
+    function drawTrajectory() {
+        let [clientX, clientY] = positionScreenToWorld(cursorX, cursorY);
+        clientY = Math.min(clientY, 95);
+
+        const offsetX = clientX;
+        const offsetY = clientY - 100;
+
+        let [directionX, directionY] = normalize(offsetX, offsetY);
+
+        let x = projectile.x;
+        let y = projectile.y;
+
+        const balls = gameObjects.filter(gameObject => gameObject.objectType === 'Ball');
+
+        for (let i = 1; i <= 1000; i++) {
+            x += directionX / 10;
+            y += directionY / 10;
+
+            if (x - projectile.radius < -levelWidth / 2 || x + projectile.radius > levelWidth / 2) {
+                directionX = -directionX;
+            }
+
+            if (i % 50 === 0) {
+                for (const ball of balls) {
+                    if (dot2(x - ball.x, y - ball.y) < 1.5 * ballRadius * ballRadius)
+                        return;
+                }
+
+                const trajectoryBallRadius = ballRadius / 3;
+                const [x1, y1] = positionWorldToScreen(x, y);
+                const [w, h] = sizeWorldToScreen(2 * trajectoryBallRadius, 2 * trajectoryBallRadius);
+                spriteBatch.drawRectangleOffCenter(textures['circle_05'], x1, y1, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+            }
+        }
     }
 
     (document.readyState === 'loading') ? document.addEventListener('DOMContentLoaded', main) : main();

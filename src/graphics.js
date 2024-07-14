@@ -568,11 +568,6 @@ class Renderer {
         context.enable(context.BLEND);
         context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
 
-        this.r = Math.pow(0.63, 2.2);
-        this.g = Math.pow(0.88, 2.2);
-        this.b = Math.pow(0.98, 2.2);
-        this.a = 1;
-
         this.resize(width, height);
     }
 
@@ -606,10 +601,10 @@ class Renderer {
         ];
     }
 
-    clear() {
+    clear(r, g, b, a) {
         const { context } = this;
 
-        context.clearColor(this.r, this.g, this.b, this.a);
+        context.clearColor(r, g, b, a);
         context.clear(context.COLOR_BUFFER_BIT);
 
         return this;
