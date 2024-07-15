@@ -708,7 +708,7 @@ async function main() {
     Sentry.init({
         dsn: "https://467bb70629ddf06d676a334cf029ae10@o4507607024140288.ingest.de.sentry.io/4507607028662352",
         tracesSampleRate: 1.0,
-        denyUrls: ['/games/sdk/v2/'],
+        ignoreErrors: ['No parent to post message'],
     });
 
     canvas = document.getElementById('canvas');
