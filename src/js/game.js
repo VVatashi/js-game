@@ -1,6 +1,6 @@
+import * as Sentry from '@sentry/browser';
 import { AudioSystem } from './audio.js';
 import { ShaderProgram, Framebuffer, Renderbuffer, Texture, Font, Renderer, SpriteBatch } from './graphics.js';
-import * as Sentry from '@sentry/browser';
 
 class GameObject {
     get objectType() { return 'GameObject'; }
@@ -711,6 +711,10 @@ async function main() {
         ignoreErrors: ['No parent to post message'],
     });
 
+    GameAnalytics("configureBuild", "0.15.0");
+    GameAnalytics('setEnabledInfoLog', true);
+    GameAnalytics('initialize', '12fd1ab146688e461b8fa239357afb23', 'dd5cd8fd5ee98fae5f628cd28e16106e55d14a22');
+
     canvas = document.getElementById('canvas');
     if (canvas === null) return console.error('#canvas not found');
 
@@ -796,6 +800,8 @@ async function main() {
         }
         else if (state === 'start') {
             state = 'idle';
+
+            GameAnalytics('addProgressionEvent', 'Start', `level_${difficulty.toString().padStart(3, '0')}`, '', '', score);
         } else if (['win', 'fail'].includes(state)) {
             if (typeof window.yandexGamesSDK !== 'undefined') {
                 audioSystem?.suspend();
@@ -920,6 +926,7 @@ async function main() {
     window.yandexGamesSDK.getPlayer({ scopes: false }).then(result => {
         player = result;
         Sentry.setUser({ id: result });
+        GameAnalytics('configureUserId', result);
     });
 }
 
@@ -1172,6 +1179,8 @@ function update(timestamp) {
             if (ball.y + ball.radius > 90) {
                 score = levelStartScore;
                 state = 'fail';
+
+                GameAnalytics('addProgressionEvent', 'Fail', `level_${difficulty.toString().padStart(3, '0')}`, '', '', score);
                 break;
             }
         }
@@ -1197,6 +1206,8 @@ function update(timestamp) {
         }
 
         Sentry.setContext('game', { level: difficulty });
+
+        GameAnalytics('addProgressionEvent', 'Complete', `level_${difficulty.toString().padStart(3, '0')}`, '', '', score);
     }
 
     framebufferMultisample.bind();
