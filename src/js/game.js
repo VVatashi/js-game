@@ -571,18 +571,76 @@ function getBallTypesOnBoard() {
     return [...types];
 }
 
+function getBallAt(balls, x, y) {
+    for (const ball of balls) {
+        if (dot2(x - ball.x, y - ball.y) < 1.25 * ball.radius * ball.radius) {
+            return ball;
+        }
+    }
+
+    return null;
+}
+
+function raycastBall(balls, x, y, dx, dy) {
+    let ball = null;
+    let step = 0;
+    while (ball === null && step < 128) {
+        ball = getBallAt(balls, x, y);
+
+        x += dx * ballRadius / 2;
+        y += dy * ballRadius / 2;
+
+        if (x - ballRadius < -levelWidth / 2 || x + ballRadius > levelWidth / 2) {
+            dx = -dx;
+        }
+
+        step++;
+    }
+
+    return ball;
+}
+
+function getNextProjectileTypes() {
+    const balls = gameObjects.filter(gameObject => gameObject.objectType === 'Ball');
+    const foundSet = new Set();
+    const y0 = -5;
+    for (let x0 = -10; x0 < 10; x0++) {
+        const [x, y] = normalize(x0, y0);
+        const ball = raycastBall(balls, 0, 90, x, y);
+        if (ball !== null)
+            foundSet.add(ball);
+    }
+
+    const found = [];
+    for (const ball of [...foundSet]) {
+        // Increase probability of balls with more linked balls of the same type
+        const linkedCount = getLinkedBallsOfSameType(ball).length;
+        for (let i = 0; i < linkedCount; i++)
+            found.push(ball);
+    }
+
+    return found.map(ball => ball.type);
+}
+
 function getNextProjectileType() {
-    const limit = 8;
-    return [...new Set(gameObjects.filter(gameObject => gameObject.objectType === 'Ball').sort((a, b) => b.y - a.y).slice(0, limit).map(gameObject => gameObject.type))];
+    const types = getNextProjectileTypes();
+    if (types.length === 0) {
+        const typesOnBoard = getBallTypesOnBoard();
+        if (typesOnBoard.length === 0)
+            return 0;
+
+        return typesOnBoard[Math.floor(typesOnBoard.length * Math.random())];
+    }
+
+    return types[Math.floor(types.length * Math.random())];
 }
 
 function createOrResetProjectile() {
     gameObjects = gameObjects.filter(gameObject => gameObject !== projectile);
 
     const typesOnBoard = getBallTypesOnBoard();
-    const possibleNextTypes = getNextProjectileType().filter(type => type !== nextProjectileType);
-    const currentType = typesOnBoard.length > 0 ? (typesOnBoard.includes(nextProjectileType) ? nextProjectileType : typesOnBoard[Math.floor(typesOnBoard.length * Math.random())]) : 0;
-    nextProjectileType = possibleNextTypes.length > 0 ? possibleNextTypes[Math.floor(possibleNextTypes.length * Math.random())] : 0;
+    const currentType = typesOnBoard.length > 0 && typesOnBoard.includes(nextProjectileType) ? nextProjectileType : getNextProjectileType();
+    nextProjectileType = getNextProjectileType();
 
     gameObjects.push(projectile = new Projectile(0, 95, ballRadius, 0, 0, currentType));
 }
@@ -603,6 +661,7 @@ function createOrResetLevel() {
 
     backgroundIndex = Math.floor(Math.random() * backgrounds.length);
 
+    nextProjectileType = getNextProjectileTypes();
     createOrResetProjectile();
 }
 
@@ -883,6 +942,22 @@ function update(timestamp) {
     for (const gameObject of gameObjects)
         gameObject.update(deltaTime);
 
+    // If all balls are on top, pull them down
+    if (state === 'idle') {
+        let maxY = 0;
+        const balls = gameObjects.filter(gameObject => gameObject.objectType === 'Ball');
+        for (const ball of balls) {
+            if (ball.y > maxY)
+                maxY = ball.y;
+        }
+
+        const [_x, y] = positionScreenToWorld(0, 0);
+        if (maxY < y + 4 * ballRadius) {
+            for (const ball of balls)
+                ball.y += deltaTime / 100;
+        }
+    }
+
     if (state === 'shot') {
         // Check ball/projectile collision
         for (const gameObject of gameObjects) {
@@ -1007,8 +1082,9 @@ function update(timestamp) {
 
     // Set state to fail if any ball reached bottom
     if (state === 'idle') {
-        for (const gameObject of gameObjects.filter(gameObject => gameObject.objectType === 'Ball')) {
-            if (gameObject.y + gameObject.radius > 90) {
+        const balls = gameObjects.filter(gameObject => gameObject.objectType === 'Ball');
+        for (const ball of balls) {
+            if (ball.y - ball.radius > 90) {
                 score = levelStartScore;
                 state = 'fail';
                 break;
@@ -1202,8 +1278,10 @@ function update(timestamp) {
 
     if (showTrajectory && state === 'idle' && projectile !== null) {
         spriteBatch.begin();
+
         projectile.draw();
         drawTrajectory();
+
         spriteBatch.end();
     }
 
@@ -1229,7 +1307,7 @@ function update(timestamp) {
     }
 
     context.viewport(0, 0, renderer.width, renderer.height);
-    screenShaderProgram.bind().setUniformInteger('blurTexture', 1).setUniform('blurBrightness', (Math.sin(8 * (timestamp / 1000)) + 1) / 2);
+    screenShaderProgram.bind().setUniformInteger('blurTexture', 1).setUniform('blurBrightness', (Math.sin(8 * timestamp / 1000) + 1) / 2);
     framebuffer.attachment.bind();
     pongFramebuffer.attachment.bind(1);
     renderer.beginGeometry();
