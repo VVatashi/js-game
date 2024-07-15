@@ -833,6 +833,10 @@ async function main() {
     document.addEventListener('pointermove', event => {
         event.preventDefault();
 
+        const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
+        if (event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
+            return;
+
         cursorX = event.clientX;
         cursorY = event.clientY;
 
@@ -842,6 +846,10 @@ async function main() {
 
     document.addEventListener('pointerup', event => {
         event.preventDefault();
+
+        const [x0, _y0] = positionWorldToScreen(-levelWidth / 2, 0);
+        if (event.clientX > x0 + 10 && event.clientX < x0 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
+            return;
 
         cursorX = event.clientX;
         cursorY = event.clientY;
