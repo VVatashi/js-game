@@ -724,9 +724,9 @@ async function main() {
 
     await Promise.all([
         ...[
-            'ball0', 'ball1', 'ball2', 'ball3', 'ball4', 'ball5', 'ball6', 'ball7',
             'background_0', 'background_0_blur', 'background_1', 'background_1_blur', 'background_2', 'background_2_blur',
-            'rays', 'white', 'blue_button00', 'circle_05',
+            'ball0', 'ball1', 'ball2', 'ball3', 'ball4', 'ball5', 'ball6', 'ball7',
+            'blue_button00', 'circle_05', 'lang_en', 'lang_ru', 'rays', 'white',
         ].map(name => loadImage(`./assets/${name}.png`).then(image => textures[name] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.SRGB8_ALPHA8).setImage(image))),
         loadImage('./assets/font.png').then(image => textures['font'] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.RGBA8).setImage(image)),
         loadBinary('./assets/font.bin').then(fontData => font = new Font().deserializeData(fontData)),
@@ -762,6 +762,11 @@ async function main() {
                 loadAudio('./assets/impactGlass_medium_004.mp3'),
             ]).then(result => impactSounds = result);
         }
+
+        // Language button
+        const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
+        if (event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
+            return nextLanguage();
 
         if (state === 'menu') {
             cursorX = event.clientX;
@@ -814,6 +819,10 @@ async function main() {
     document.addEventListener('pointerdown', event => {
         event.preventDefault();
 
+        const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
+        if (event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
+            return;
+
         cursorX = event.clientX;
         cursorY = event.clientY;
 
@@ -862,7 +871,7 @@ async function main() {
     resize();
     addEventListener('resize', resize);
 
-    const deviceLanguage = navigator.language.slice(0, 2);
+    const deviceLanguage = navigator.language.slice(0, 2).toLowerCase();
     console.log(`Device language: ${deviceLanguage}`);
     setLanguage(deviceLanguage);
 
@@ -896,16 +905,24 @@ async function main() {
 
 function setLanguage(value) {
     const availableLanguages = Object.keys(translations);
-    if (availableLanguages.includes(value)) {
+    if (availableLanguages.includes(value))
         language = value;
-    } else {
-        if (['be', 'kk', 'uk', 'uz'].includes(value))
-            language = 'ru';
-        else
-            language = 'en';
-    }
+    else if (['be', 'kk', 'uk', 'uz'].includes(value))
+        language = 'ru';
+    else
+        language = 'en';
 
     console.log(`Language changed to ${language}`);
+}
+
+function nextLanguage() {
+    const availableLanguages = Object.keys(translations);
+    const languageIndex = availableLanguages.findIndex(item => item === language);
+    if (languageIndex === -1 || languageIndex === availableLanguages.length - 1)
+        setLanguage(availableLanguages[0]);
+    else
+        setLanguage(availableLanguages[languageIndex + 1]);
+
 }
 
 function getLinkedBalls(ball, except = []) {
@@ -1192,6 +1209,14 @@ function update(timestamp) {
         spriteBatch.drawRotatedRectangleOffCenter(textures['rays'], renderer.width / 2, renderer.height / 2, renderer.height * 0.5, renderer.height * 0.5, timestamp / 10000, 0, 0, 1, 1, 1, 1, 1, 0.5);
         spriteBatch.end();
 
+        // Draw language button
+        {
+            const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
+            spriteBatch.begin();
+            spriteBatch.drawRectangle(textures[`lang_${language}`], x + 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
+            spriteBatch.end();
+        }
+
         const fontSize = 32;
 
         // Draw buttons
@@ -1272,6 +1297,14 @@ function update(timestamp) {
         }
 
         spriteBatch.end();
+
+        // Draw language button
+        {
+            const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
+            spriteBatch.begin();
+            spriteBatch.drawRectangle(textures[`lang_${language}`], x + 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
+            spriteBatch.end();
+        }
 
         // Draw text
         if (font !== null) {
