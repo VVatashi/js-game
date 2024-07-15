@@ -708,7 +708,7 @@ async function main() {
     Sentry.init({
         dsn: "https://467bb70629ddf06d676a334cf029ae10@o4507607024140288.ingest.de.sentry.io/4507607028662352",
         tracesSampleRate: 1.0,
-        denyUrls: [/https?:\/\/yandex.ru\/games\/sdk\/v2\/.*/],
+        denyUrls: ['/games/sdk/v2/'],
     });
 
     canvas = document.getElementById('canvas');
@@ -904,6 +904,8 @@ async function main() {
         levelStartScore = lastScore;
     }
 
+    Sentry.setContext('game', { level: difficulty });
+
     createOrResetLevel();
     console.log('Game ready');
 
@@ -915,7 +917,10 @@ async function main() {
     console.log(`SDK language: ${yandexGamesSDKLanguage}`);
     setLanguage(yandexGamesSDKLanguage);
 
-    window.yandexGamesSDK.getPlayer({ scopes: false }).then(result => player = result);
+    window.yandexGamesSDK.getPlayer({ scopes: false }).then(result => {
+        player = result;
+        Sentry.setUser({ id: result });
+    });
 }
 
 function setLanguage(value) {
@@ -1190,6 +1195,8 @@ function update(timestamp) {
                 window.yandexGamesSDK.getLeaderboards().then(leaderboards => leaderboards.setLeaderboardScore(LEADERBOARD, score));
             })
         }
+
+        Sentry.setContext('game', { level: difficulty });
     }
 
     framebufferMultisample.bind();
