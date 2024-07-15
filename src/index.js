@@ -387,14 +387,14 @@ precision mediump float;
 uniform sampler2D colorTexture;
 uniform sampler2D blurTexture;
 
-uniform float time;
+uniform float blurBrightness;
 
 in vec2 fragTexCoords;
 
 out vec4 color;
 
 void main() {
-    vec3 result = texture(colorTexture, fragTexCoords).rgb + ((sin(8.0 * time) + 1.0) / 2.0) * texture(blurTexture, fragTexCoords).rgb;
+    vec3 result = texture(colorTexture, fragTexCoords).rgb + blurBrightness * texture(blurTexture, fragTexCoords).rgb;
     color = vec4(pow(result, vec3(1.0 / 2.2)), 1.0);
 }
 `;
@@ -482,14 +482,24 @@ void main() {
 
     let player = null;
 
-    const PADDING_BOTTOM = 109;
-    const BACKGROUND_COUNT = 3;
+    const backgrounds = [
+        { textureName: 'background_0', blurTextureName: 'background_0_blur' },
+        { textureName: 'background_1', blurTextureName: 'background_1_blur' },
+        { textureName: 'background_2', blurTextureName: 'background_2_blur' },
+    ];
 
-    let background = 0;
+    let backgroundIndex = 0;
+
+    const PADDING_BOTTOM = 109;
 
     async function loadText(url) {
         const response = await fetch(url);
         return response.text();
+    }
+
+    async function loadBinary(url) {
+        const response = await fetch(url);
+        return response.arrayBuffer();
     }
 
     function loadImage(url) {
@@ -589,7 +599,7 @@ void main() {
                 if (y === minY) firstLayer.push(gameObject);
             }
 
-        background = Math.floor(Math.random() * BACKGROUND_COUNT);
+        backgroundIndex = Math.floor(Math.random() * backgrounds.length);
 
         createOrResetProjectile();
     }
@@ -627,15 +637,13 @@ void main() {
         pongFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
 
         await Promise.all([
-            Promise.all([loadImage('./assets/font.png'), loadText('./assets/font.csv')]).then(([fontImage, fontData]) => {
-                textures['font'] = new Texture(context, context.TEXTURE_2D, fontImage.width, fontImage.height, context.RGBA8).setImage(fontImage);
-                font = new Font(fontData, fontImage.width, fontImage.height);
-            }),
             ...[
                 'ball0', 'ball1', 'ball2', 'ball3', 'ball4', 'ball5', 'ball6', 'ball7',
                 'background_0', 'background_0_blur', 'background_1', 'background_1_blur', 'background_2', 'background_2_blur',
                 'rays', 'white', 'blue_button00', 'circle_05',
             ].map(name => loadImage(`./assets/${name}.png`).then(image => textures[name] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.SRGB8_ALPHA8).setImage(image))),
+            loadImage('./assets/font.png').then(image => textures['font'] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.RGBA8).setImage(image)),
+            loadBinary('./assets/font.bin').then(fontData => font = new Font().deserializeData(fontData)),
         ]);
 
         document.addEventListener('visibilitychange', function () {
@@ -769,7 +777,6 @@ void main() {
         addEventListener('resize', resize);
 
         requestAnimationFrame(update);
-        console.log('Game ready');
 
         const lastDifficulty = Number(localStorage.getItem('last_difficulty') || 0);
         if (lastDifficulty > 1) {
@@ -784,12 +791,13 @@ void main() {
         }
 
         createOrResetLevel();
+        console.log('Game ready');
 
         await window.yandexGamesSDKPromise;
         window.yandexGamesSDK.features.LoadingAPI?.ready();
         console.log('Yandex Games SDK ready');
 
-        window.yandexGamesSDK.getPlayer({ scopes: false }).then(p => player = p);
+        window.yandexGamesSDK.getPlayer({ scopes: false }).then(result => player = result);
     }
 
     function getLinkedBalls(ball, except = []) {
@@ -1035,18 +1043,20 @@ void main() {
             {
                 spriteBatch.begin();
 
+                const texture = textures[backgrounds[backgroundIndex].blurTextureName];
                 const scale = renderer.height / 100;
                 const x = renderer.width / 2;
                 const y = renderer.height / 2;
                 const w = 4 * levelWidth * scale;
                 const h = 2 * renderer.height;
 
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x - w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x + w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(texture, x - w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(texture, x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(texture, x + w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
 
+                const texture1 = textures[backgrounds[backgroundIndex].textureName];
                 const [w1, _h1] = sizeWorldToScreen(levelWidth, 0);
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}`], renderer.width / 2, renderer.height / 2, w1, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(texture1, renderer.width / 2, renderer.height / 2, w1, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
 
                 spriteBatch.end();
             }
@@ -1093,18 +1103,20 @@ void main() {
 
             // Draw background
             {
+                const texture = textures[backgrounds[backgroundIndex].blurTextureName];
                 const scale = renderer.height / 100;
                 const x = renderer.width / 2;
                 const y = renderer.height / 2;
                 const w = 4 * levelWidth * scale;
                 const h = 2 * renderer.height;
 
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x - w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}_blur`], x + w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(texture, x - w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(texture, x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(texture, x + w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
 
+                const texture1 = textures[backgrounds[backgroundIndex].textureName];
                 const [w1, _h1] = sizeWorldToScreen(levelWidth, 0);
-                spriteBatch.drawRectangleOffCenter(textures[`background_${background}`], renderer.width / 2, renderer.height / 2, w1, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
+                spriteBatch.drawRectangleOffCenter(texture1, renderer.width / 2, renderer.height / 2, w1, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
             }
 
             for (const gameObject of gameObjects)
@@ -1215,7 +1227,7 @@ void main() {
         }
 
         context.viewport(0, 0, renderer.width, renderer.height);
-        screenShaderProgram.bind().setUniformInteger('blurTexture', 1).setUniform('time', timestamp / 1000);
+        screenShaderProgram.bind().setUniformInteger('blurTexture', 1).setUniform('blurBrightness', (Math.sin(8 * (timestamp / 1000)) + 1) / 2);
         framebuffer.attachment.bind();
         pongFramebuffer.attachment.bind(1);
         renderer.beginGeometry();
@@ -1257,6 +1269,22 @@ void main() {
                 spriteBatch.drawRectangleOffCenter(textures['circle_05'], x1, y1, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
             }
         }
+    }
+
+    function saveFile(name, data) {
+        const url = URL.createObjectURL(new Blob([data]));
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = name;
+
+        document.body.appendChild(link);
+        link.click();
+
+        setTimeout(() => {
+            link.remove();
+            URL.revokeObjectURL(url);
+        });
     }
 
     (document.readyState === 'loading') ? document.addEventListener('DOMContentLoaded', main) : main();

@@ -523,12 +523,15 @@ class Mesh {
 }
 
 class Font {
-    constructor(data, atlasWidth, atlasHeight) {
+    constructor() {
         this.glyphs = {};
+    }
 
+    deserializeDataFromCSV(data, atlasWidth, atlasHeight) {
         const lines = data.split('\n');
         for (const line of lines) {
             const values = line.split(',');
+
             if (values.length !== 10) continue;
 
             const charCode = Number(values[0]);
@@ -544,6 +547,43 @@ class Font {
 
             this.glyphs[charCode] = { charCode, advance, planeLeft, planeBottom, planeRight, planeTop, atlasLeft, atlasBottom, atlasRight, atlasTop };
         }
+
+        return this;
+    }
+
+    deserializeData(data) {
+        const buffer = new Float32Array(data);
+
+        let index = 0;
+        const count = buffer[index++];
+
+        for (let i = 0; i < count; i++) {
+            const charCode = buffer[index++];
+            const advance = buffer[index++];
+            const planeLeft = buffer[index++];
+            const planeBottom = buffer[index++];
+            const planeRight = buffer[index++];
+            const planeTop = buffer[index++];
+            const atlasLeft = buffer[index++];
+            const atlasBottom = buffer[index++];
+            const atlasRight = buffer[index++];
+            const atlasTop = buffer[index++];
+
+            this.glyphs[charCode] = { charCode, advance, planeLeft, planeBottom, planeRight, planeTop, atlasLeft, atlasBottom, atlasRight, atlasTop };
+        }
+
+        return this;
+    }
+
+    serializeData() {
+        const glyphs = Object.values(this.glyphs);
+        const data = [glyphs.length];
+        for (const glyph of glyphs) {
+            const { charCode, advance, planeLeft, planeBottom, planeRight, planeTop, atlasLeft, atlasBottom, atlasRight, atlasTop } = glyph;
+            data.push(charCode, advance, planeLeft, planeBottom, planeRight, planeTop, atlasLeft, atlasBottom, atlasRight, atlasTop);
+        }
+
+        return new Float32Array(data);
     }
 }
 
