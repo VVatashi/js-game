@@ -494,6 +494,31 @@ let backgroundIndex = 0;
 
 const PADDING_BOTTOM = 109;
 
+const translations = {
+    ru: {
+        newGame: 'Новая игра',
+        continue: 'Продолжить',
+        level: 'Уровень',
+        win: 'Победа',
+        fail: 'Поражение',
+        press: 'Нажмите',
+        toStartGame: 'чтобы начать игру',
+        toContinue: 'чтобы продолжить',
+    },
+    en: {
+        newGame: 'New Game',
+        continue: 'Continue',
+        level: 'Level',
+        win: 'Win',
+        fail: 'Fail',
+        press: 'Press',
+        toStartGame: 'to start game',
+        toContinue: 'to continue',
+    },
+};
+
+let language = 'en';
+
 async function loadText(url) {
     const response = await fetch(url);
     return response.text();
@@ -837,6 +862,10 @@ async function main() {
     resize();
     addEventListener('resize', resize);
 
+    const deviceLanguage = navigator.language.slice(0, 2);
+    console.log(`Device language: ${deviceLanguage}`);
+    setLanguage(deviceLanguage);
+
     requestAnimationFrame(update);
 
     const lastDifficulty = Number(localStorage.getItem('last_difficulty') || 0);
@@ -858,7 +887,25 @@ async function main() {
     window.yandexGamesSDK.features.LoadingAPI?.ready();
     console.log('Yandex Games SDK ready');
 
+    const yandexGamesSDKLanguage = window.yandexGamesSDK.environment.i18n.lang;
+    console.log(`SDK language: ${yandexGamesSDKLanguage}`);
+    setLanguage(yandexGamesSDKLanguage);
+
     window.yandexGamesSDK.getPlayer({ scopes: false }).then(result => player = result);
+}
+
+function setLanguage(value) {
+    const availableLanguages = Object.keys(translations);
+    if (availableLanguages.includes(value)) {
+        language = value;
+    } else {
+        if (['be', 'kk', 'uk', 'uz'].includes(value))
+            language = 'ru';
+        else
+            language = 'en';
+    }
+
+    console.log(`Language changed to ${language}`);
 }
 
 function getLinkedBalls(ball, except = []) {
@@ -952,7 +999,7 @@ function update(timestamp) {
         }
 
         const [_x, y] = positionScreenToWorld(0, 0);
-        if (maxY < y + 4 * ballRadius) {
+        if (maxY < y + 4 * ballRadius && maxY < 50) {
             for (const ball of balls)
                 ball.y += deltaTime / 100;
         }
@@ -1084,7 +1131,7 @@ function update(timestamp) {
     if (state === 'idle') {
         const balls = gameObjects.filter(gameObject => gameObject.objectType === 'Ball');
         for (const ball of balls) {
-            if (ball.y - ball.radius > 90) {
+            if (ball.y + ball.radius > 90) {
                 score = levelStartScore;
                 state = 'fail';
                 break;
@@ -1169,10 +1216,10 @@ function update(timestamp) {
             textures['font'].bind();
             renderer.beginGeometry();
 
-            renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 2.25, 'Продолжить', fontSize, 1, 1, 1, 1);
-            renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 1.25, `Уровень ${difficulty}`, fontSize * 0.75, 1, 1, 1, 1);
+            renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 2.25, translations[language].continue, fontSize, 1, 1, 1, 1);
+            renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 1.25, translations[language].level + ' ' + difficulty, fontSize * 0.75, 1, 1, 1, 1);
 
-            renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 1.25, 'Новая игра', fontSize, 1, 1, 1, 1);
+            renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 1.25, translations[language].newGame, fontSize, 1, 1, 1, 1);
 
             renderer.endGeometry();
         }
@@ -1245,24 +1292,24 @@ function update(timestamp) {
 
             if (state === 'start') {
                 if (difficulty === 1) {
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 1.75, 'Нажмите', fontSize, 1, 1, 1, 1);
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, 'чтобы начать игру', fontSize, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 1.75, translations[language].press, fontSize, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, translations[language].toStartGame, fontSize, 1, 1, 1, 1);
                 } else {
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Уровень ' + difficulty, fontSize, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].level + ' ' + difficulty, fontSize, 1, 1, 1, 1);
 
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
+                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
                 }
             } else if (state === 'win') {
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Победа', fontSize, 1, 1, 1, 1);
+                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].win, fontSize, 1, 1, 1, 1);
 
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
+                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
+                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
             } else if (state === 'fail') {
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, 'Поражение', fontSize, 1, 1, 1, 1);
+                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].fail, fontSize, 1, 1, 1, 1);
 
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, 'Нажмите', fontSize * 0.75, 1, 1, 1, 1);
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, 'чтобы продолжить', fontSize * 0.75, 1, 1, 1, 1);
+                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
+                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
             }
 
             spriteBatch.end();
