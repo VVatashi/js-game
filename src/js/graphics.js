@@ -1,4 +1,4 @@
-class Renderbuffer {
+export class Renderbuffer {
     /**
      * @param {WebGL2RenderingContext} context
      * @param {number} width
@@ -33,7 +33,7 @@ class Renderbuffer {
     }
 }
 
-class Framebuffer {
+export class Framebuffer {
     /**
      * @param {WebGL2RenderingContext} context
      * @param {number} width
@@ -141,7 +141,7 @@ class Framebuffer {
     }
 }
 
-class Shader {
+export class Shader {
     /**
      * @param {WebGL2RenderingContext} context
      * @param {number} type
@@ -170,7 +170,7 @@ class Shader {
     }
 }
 
-class ShaderProgram {
+export class ShaderProgram {
     /**
      * @param {WebGL2RenderingContext} context
      * @param {string} vertexShaderSource
@@ -260,7 +260,7 @@ class ShaderProgram {
     }
 }
 
-class Texture {
+export class Texture {
     /**
      * @param {WebGL2RenderingContext} context
      * @param {number} type
@@ -320,7 +320,7 @@ class Texture {
     }
 }
 
-class Buffer {
+export class Buffer {
     /**
      * @param {WebGL2RenderingContext} context
      * @param {number} type
@@ -383,7 +383,7 @@ class Buffer {
     }
 }
 
-class VertexAttribute {
+export class VertexAttribute {
     /**
      * @param {number} elements
      * @param {number} type
@@ -400,7 +400,7 @@ class VertexAttribute {
     }
 }
 
-class VertexArray {
+export class VertexArray {
     /**
      * @param {WebGL2RenderingContext} context
      * @param {Buffer} buffer
@@ -465,7 +465,7 @@ class VertexArray {
     }
 }
 
-class Mesh {
+export class Mesh {
     /**
      * @param {WebGL2RenderingContext} context
      * @param {number} vertexCount
@@ -522,7 +522,7 @@ class Mesh {
     }
 }
 
-class Font {
+export class Font {
     constructor() {
         this.glyphs = {};
     }
@@ -587,7 +587,7 @@ class Font {
     }
 }
 
-class Renderer {
+export class Renderer {
     MAX_VERTICES = 65535;
     VERTEX_ELEMENTS = 8;
 
@@ -905,7 +905,7 @@ class Renderer {
     }
 }
 
-class SpriteBatch {
+export class SpriteBatch {
     /**
      * @param {Renderer} renderer
      */

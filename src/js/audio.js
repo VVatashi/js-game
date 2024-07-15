@@ -1,4 +1,4 @@
-class AudioSystem {
+export class AudioSystem {
     constructor() {
         const context = new AudioContext();
 
