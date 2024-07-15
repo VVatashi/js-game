@@ -18,7 +18,7 @@ function jsTask() {
         bundle: true,
         minify: true,
         sourcemap: true,
-        sourceRoot: 'https://vvatashi.github.io/js-game/dist/',
+        sourceRoot: 'https://github.com/VVatashi/js-game/tree/master/dist/',
         plugins: [
             sentryEsbuildPlugin({
                 authToken: process.env.SENTRY_AUTH_TOKEN,

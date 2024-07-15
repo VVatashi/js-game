@@ -1,5 +1,6 @@
 import { AudioSystem } from './audio.js';
 import { ShaderProgram, Framebuffer, Renderbuffer, Texture, Font, Renderer, SpriteBatch } from './graphics.js';
+import * as Sentry from '@sentry/browser';
 
 class GameObject {
     get objectType() { return 'GameObject'; }
@@ -704,6 +705,12 @@ function resize() {
 }
 
 async function main() {
+    Sentry.init({
+        dsn: "https://467bb70629ddf06d676a334cf029ae10@o4507607024140288.ingest.de.sentry.io/4507607028662352",
+        tracesSampleRate: 1.0,
+        denyUrls: [/https?:\/\/yandex.ru\/games\/sdk\/v2\/.*/],
+    });
+
     canvas = document.getElementById('canvas');
     if (canvas === null) return console.error('#canvas not found');
 
@@ -920,6 +927,7 @@ function setLanguage(value) {
     else
         language = 'en';
 
+    Sentry.setTag('language', language);
     console.log(`Language changed to ${language}`);
 }
 
