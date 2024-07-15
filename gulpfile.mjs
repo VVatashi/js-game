@@ -1,3 +1,4 @@
+import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 import autoprefixer from 'autoprefixer';
 import cssnano from 'cssnano';
 import * as esbuild from 'esbuild';
@@ -16,6 +17,14 @@ function jsTask() {
         target: 'es2020',
         bundle: true,
         minify: true,
+        sourcemap: true,
+        plugins: [
+            sentryEsbuildPlugin({
+                authToken: process.env.SENTRY_AUTH_TOKEN,
+                org: 'yandex-games',
+                project: 'puzzle-bobble',
+            }),
+        ]
     });
 }
 
