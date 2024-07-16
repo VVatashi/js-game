@@ -519,6 +519,7 @@ const translations = {
 };
 
 let language = 'en';
+let mute = false;
 
 async function loadText(url) {
     const response = await fetch(url);
@@ -737,7 +738,7 @@ async function main() {
         ...[
             'background_0', 'background_0_blur', 'background_1', 'background_1_blur', 'background_2', 'background_2_blur',
             'ball0', 'ball1', 'ball2', 'ball3', 'ball4', 'ball5', 'ball6', 'ball7',
-            'blue_button00', 'circle_05', 'lang_en', 'lang_ru', 'rays', 'white',
+            'blue_button00', 'btn_mute', 'btn_pause', 'btn_play', 'btn_unmute', 'circle_05', 'lang_en', 'lang_ru', 'rays', 'white',
         ].map(name => loadImage(`./assets/${name}.png`).then(image => textures[name] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.SRGB8_ALPHA8).setImage(image))),
         loadImage('./assets/font.png').then(image => textures['font'] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.RGBA8).setImage(image)),
         loadBinary('./assets/font.bin').then(fontData => font = new Font().deserializeData(fontData)),
@@ -778,6 +779,10 @@ async function main() {
         const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
         if (event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
             return nextLanguage();
+
+        if (event.clientX > x + 10 + 64 + 10 && event.clientX < x + 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
+            mute = !mute;
+        }
 
         if (state === 'menu') {
             cursorX = event.clientX;
@@ -833,7 +838,9 @@ async function main() {
         event.preventDefault();
 
         const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
-        if (event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
+        if (event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > x + 10 + 64 + 10 && event.clientX < x + 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+        )
             return;
 
         cursorX = event.clientX;
@@ -847,7 +854,8 @@ async function main() {
         event.preventDefault();
 
         const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
-        if (event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
+        if (event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > x + 10 + 64 + 10 && event.clientX < x + 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
             return;
 
         cursorX = event.clientX;
@@ -861,7 +869,8 @@ async function main() {
         event.preventDefault();
 
         const [x0, _y0] = positionWorldToScreen(-levelWidth / 2, 0);
-        if (event.clientX > x0 + 10 && event.clientX < x0 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
+        if (event.clientX > x0 + 10 && event.clientX < x0 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > x0 + 10 + 64 + 10 && event.clientX < x0 + 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
             return;
 
         cursorX = event.clientX;
@@ -1008,7 +1017,7 @@ function getNeighbourBalls(ball) {
 }
 
 function playImpactSound() {
-    if (impactSounds.length === 0) return;
+    if (mute || impactSounds.length === 0) return;
 
     audioSystem.play(impactSounds[nextImpactSound++ % impactSounds.length]);
 }
@@ -1332,11 +1341,15 @@ function update(timestamp) {
 
         spriteBatch.end();
 
-        // Draw language button
+        // Draw buttons
         {
             const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
             spriteBatch.begin();
             spriteBatch.drawRectangle(textures[`lang_${language}`], x + 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
+            spriteBatch.end();
+
+            spriteBatch.begin();
+            spriteBatch.drawRectangle(mute ? textures['btn_mute'] : textures['btn_unmute'], x + 10 + 64 + 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
             spriteBatch.end();
         }
 
