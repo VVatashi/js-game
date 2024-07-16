@@ -492,7 +492,7 @@ const backgrounds = [
 
 let backgroundIndex = 0;
 
-const PADDING_BOTTOM = 109;
+const PADDING_BOTTOM = 0;
 
 const translations = {
     ru: {
@@ -714,7 +714,7 @@ async function main() {
         ignoreErrors: ['No parent to post message'],
     });
 
-    GameAnalytics('configureBuild', '0.18.0');
+    GameAnalytics('configureBuild', '0.19.0');
     GameAnalytics('setEnabledInfoLog', true);
     GameAnalytics('initialize', '12fd1ab146688e461b8fa239357afb23', 'dd5cd8fd5ee98fae5f628cd28e16106e55d14a22');
 
@@ -776,12 +776,11 @@ async function main() {
         }
 
         // Language button
-        const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
-        if (event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
+        if (event.clientX > 10 && event.clientX < 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
             return nextLanguage();
         }
 
-        if (event.clientX > x + 10 + 64 + 10 && event.clientX < x + 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
+        if (event.clientX > 10 + 64 + 10 && event.clientX < 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
             paused = !paused;
             if (hidden || paused || muted)
                 audioSystem?.suspend();
@@ -791,7 +790,7 @@ async function main() {
             return;
         }
 
-        if (event.clientX > x + 10 + (64 + 10) * 2 && event.clientX < x + 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
+        if (event.clientX > 10 + (64 + 10) * 2 && event.clientX < 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
             muted = !muted;
             if (hidden || paused || muted)
                 audioSystem?.suspend();
@@ -854,11 +853,10 @@ async function main() {
     document.addEventListener('pointerdown', event => {
         event.preventDefault();
 
-        const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
         if (paused || hidden
-            || event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > x + 10 + 64 + 10 && event.clientX < x + 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > x + 10 + (64 + 10) * 2 && event.clientX < x + 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > 10 && event.clientX < 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > 10 + 64 + 10 && event.clientX < 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > 10 + (64 + 10) * 2 && event.clientX < 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64
         )
             return;
 
@@ -872,11 +870,10 @@ async function main() {
     document.addEventListener('pointermove', event => {
         event.preventDefault();
 
-        const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
         if (paused || hidden
-            || event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > x + 10 + 64 + 10 && event.clientX < x + 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > x + 10 + (64 + 10) * 2 && event.clientX < x + 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
+            || event.clientX > 10 && event.clientX < 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > 10 + 64 + 10 && event.clientX < 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > 10 + (64 + 10) * 2 && event.clientX < 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
             return;
 
         cursorX = event.clientX;
@@ -889,11 +886,10 @@ async function main() {
     document.addEventListener('pointerup', event => {
         event.preventDefault();
 
-        const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
         if (paused || hidden
-            || event.clientX > x + 10 && event.clientX < x + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > x + 10 + 64 + 10 && event.clientX < x + 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > x + 10 + (64 + 10) * 2 && event.clientX < x + 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
+            || event.clientX > 10 && event.clientX < 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > 10 + 64 + 10 && event.clientX < 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
+            || event.clientX > 10 + (64 + 10) * 2 && event.clientX < 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
             return;
 
         cursorX = event.clientX;
@@ -959,6 +955,14 @@ async function main() {
         player = result;
         Sentry.setUser({ id: result });
         GameAnalytics('configureUserId', result);
+    });
+
+    window.yandexGamesSDK.adv.getBannerAdvStatus().then(({ stickyAdvIsShowing, reason }) => {
+        if (!stickyAdvIsShowing) {
+            window.yandexGamesSDK.adv.showBannerAdv();
+        } else if (reason) {
+            console.error(reason);
+        }
     });
 }
 
@@ -1277,9 +1281,8 @@ function update(timestamp) {
 
         // Draw buttons
         {
-            const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
             spriteBatch.begin();
-            spriteBatch.drawRectangle(textures[`lang_${language}`], x + 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
+            spriteBatch.drawRectangle(textures[`lang_${language}`], 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
             spriteBatch.end();
 
             const fontSize = 32;
@@ -1363,11 +1366,10 @@ function update(timestamp) {
 
         // Draw buttons
         {
-            const [x, _y] = positionWorldToScreen(-levelWidth / 2, 0);
             spriteBatch.begin();
-            spriteBatch.drawRectangle(textures[`lang_${language}`], x + 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.drawRectangle(paused ? textures['btn_play'] : textures['btn_pause'], x + 10 + 64 + 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.drawRectangle(muted ? textures['btn_mute'] : textures['btn_unmute'], x + 10 + (64 + 10) * 2, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
+            spriteBatch.drawRectangle(textures[`lang_${language}`], 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
+            spriteBatch.drawRectangle(paused ? textures['btn_play'] : textures['btn_pause'], 10 + 64 + 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
+            spriteBatch.drawRectangle(muted ? textures['btn_mute'] : textures['btn_unmute'], 10 + (64 + 10) * 2, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
             spriteBatch.end();
         }
 
