@@ -711,7 +711,7 @@ async function main() {
         ignoreErrors: ['No parent to post message'],
     });
 
-    GameAnalytics("configureBuild", "0.15.0");
+    GameAnalytics("configureBuild", "0.17.0");
     GameAnalytics('setEnabledInfoLog', true);
     GameAnalytics('initialize', '12fd1ab146688e461b8fa239357afb23', 'dd5cd8fd5ee98fae5f628cd28e16106e55d14a22');
 
