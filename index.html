@@ -16,14 +16,6 @@
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png" />
 
-    <script>
-        window.yandexGamesSDKPromise = new Promise(resolve => window.yandexGamesSDKResolve = resolve);
-        window.initSDK = () => YaGames.init().then(yandexGamesSDK => {
-            window.yandexGamesSDK = yandexGamesSDK;
-            window.yandexGamesSDKResolve(yandexGamesSDK);
-        });
-    </script>
-
     <!-- Yandex.Metrika counter -->
     <script type="text/javascript">
         (function (m, e, t, r, i, k, a) {
@@ -46,6 +38,18 @@
     <!-- /Yandex.Metrika counter -->
 
     <script src="./GameAnalytics.js"></script>
+
+    <!-- Yandex Games SDK -->
+    <script src="/sdk.js"></script>
+
+    <script>
+        window.yandexGamesSDKPromise = new Promise(resolve => window.yandexGamesSDKResolve = resolve);
+        window.YaGames.init().then(yandexGamesSDK => {
+            window.yandexGamesSDK = yandexGamesSDK;
+            window.yandexGamesSDKResolve(yandexGamesSDK);
+        });
+    </script>
+
     <script src="./dist/index.min.js" async></script>
 </head>
 
@@ -53,18 +57,6 @@
     <div class="container" draggable="false">
         <canvas class="canvas" id="canvas" draggable="false"></canvas>
     </div>
-
-    <!-- Yandex Games SDK -->
-    <script>
-        (function (d) {
-            var t = d.getElementsByTagName('script')[0];
-            var s = d.createElement('script');
-            s.src = 'https://yandex.ru/games/sdk/v2';
-            s.async = true;
-            t.parentNode.insertBefore(s, t);
-            s.onload = initSDK;
-        })(document);
-    </script>
 </body>
 
 </html>

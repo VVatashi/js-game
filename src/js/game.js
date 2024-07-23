@@ -712,9 +712,10 @@ async function main() {
         dsn: "https://467bb70629ddf06d676a334cf029ae10@o4507607024140288.ingest.de.sentry.io/4507607028662352",
         tracesSampleRate: 1.0,
         ignoreErrors: ['No parent to post message'],
+        release: '0.20.0',
     });
 
-    GameAnalytics('configureBuild', '0.19.0');
+    GameAnalytics('configureBuild', '0.20.0');
     GameAnalytics('setEnabledInfoLog', true);
     GameAnalytics('initialize', '12fd1ab146688e461b8fa239357afb23', 'dd5cd8fd5ee98fae5f628cd28e16106e55d14a22');
 
@@ -748,10 +749,17 @@ async function main() {
 
     document.addEventListener('visibilitychange', function () {
         hidden = document.hidden;
-        if (hidden || paused || muted)
+        if (hidden || paused || muted) {
             audioSystem?.suspend();
-        else
+
+            if (typeof window.yandexGamesSDK !== 'undefined')
+                window.yandexGamesSDK.features.GameplayAPI?.stop();
+        } else {
             audioSystem?.resume();
+
+            if (typeof window.yandexGamesSDK !== 'undefined')
+                window.yandexGamesSDK.features.GameplayAPI?.start();
+        }
     });
 
     document.addEventListener('click', event => {
@@ -782,20 +790,34 @@ async function main() {
 
         if (event.clientX > 10 + 64 + 10 && event.clientX < 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
             paused = !paused;
-            if (hidden || paused || muted)
+            if (hidden || paused || muted) {
                 audioSystem?.suspend();
-            else
+
+                if (typeof window.yandexGamesSDK !== 'undefined')
+                    window.yandexGamesSDK.features.GameplayAPI?.stop();
+            } else {
                 audioSystem?.resume();
+
+                if (typeof window.yandexGamesSDK !== 'undefined')
+                    window.yandexGamesSDK.features.GameplayAPI?.start();
+            }
 
             return;
         }
 
         if (event.clientX > 10 + (64 + 10) * 2 && event.clientX < 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
             muted = !muted;
-            if (hidden || paused || muted)
+            if (hidden || paused || muted) {
                 audioSystem?.suspend();
-            else
+
+                if (typeof window.yandexGamesSDK !== 'undefined')
+                    window.yandexGamesSDK.features.GameplayAPI?.stop();
+            } else {
                 audioSystem?.resume();
+
+                if (typeof window.yandexGamesSDK !== 'undefined')
+                    window.yandexGamesSDK.features.GameplayAPI?.start();
+            }
 
             return;
         }
@@ -826,6 +848,7 @@ async function main() {
         } else if (['win', 'fail'].includes(state)) {
             if (typeof window.yandexGamesSDK !== 'undefined') {
                 audioSystem?.suspend();
+                window.yandexGamesSDK.features.GameplayAPI?.stop();
                 paused = true;
 
                 window.yandexGamesSDK.adv.showFullscreenAdv({
@@ -833,6 +856,7 @@ async function main() {
                         onClose() {
                             createOrResetLevel();
                             audioSystem?.resume();
+                            window.yandexGamesSDK.features.GameplayAPI?.start();
                             paused = false;
                             state = 'start';
                         },
@@ -944,26 +968,28 @@ async function main() {
     console.log('Game ready');
 
     await window.yandexGamesSDKPromise;
-    window.yandexGamesSDK.features.LoadingAPI?.ready();
-    console.log('Yandex Games SDK ready');
 
-    const yandexGamesSDKLanguage = window.yandexGamesSDK.environment.i18n.lang;
-    console.log(`SDK language: ${yandexGamesSDKLanguage}`);
-    setLanguage(yandexGamesSDKLanguage);
+    if (typeof window.yandexGamesSDK !== 'undefined') {
+        window.yandexGamesSDK.features.LoadingAPI?.ready();
+        console.log('Yandex Games SDK ready');
 
-    window.yandexGamesSDK.getPlayer({ scopes: false }).then(result => {
-        player = result;
-        Sentry.setUser({ id: result });
-        GameAnalytics('configureUserId', result);
-    });
+        const yandexGamesSDKLanguage = window.yandexGamesSDK.environment.i18n.lang;
+        console.log(`SDK language: ${yandexGamesSDKLanguage}`);
+        setLanguage(yandexGamesSDKLanguage);
 
-    window.yandexGamesSDK.adv.getBannerAdvStatus().then(({ stickyAdvIsShowing, reason }) => {
-        if (!stickyAdvIsShowing) {
-            window.yandexGamesSDK.adv.showBannerAdv();
-        } else if (reason) {
-            console.error(reason);
-        }
-    });
+        window.yandexGamesSDK.getPlayer({ scopes: false }).then(result => {
+            player = result;
+            Sentry.setUser({ id: result });
+            GameAnalytics('configureUserId', result);
+        });
+
+        window.yandexGamesSDK.adv.getBannerAdvStatus().then(({ stickyAdvIsShowing, reason }) => {
+            if (!stickyAdvIsShowing)
+                window.yandexGamesSDK.adv.showBannerAdv();
+            else if (reason)
+                console.error(reason);
+        });
+    }
 }
 
 function setLanguage(value) {
