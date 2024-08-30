@@ -2,8 +2,27 @@ import * as Sentry from '@sentry/browser';
 import { AudioSystem } from './audio.js';
 import { ShaderProgram, Framebuffer, Renderbuffer, Texture, Font, Renderer, SpriteBatch } from './graphics.js';
 
+class ClickEvent {
+    constructor() {
+        this.handled = false;
+    }
+
+    stop() {
+        this.handled = true;
+    }
+}
+
 class GameObject {
     get objectType() { return 'GameObject'; }
+
+    getBounds() {
+        return { x: 0, y: 0, width: 0, height: 0 };
+    }
+
+    /**
+     * @param {ClickEvent} event
+     */
+    click(event) { }
 
     /**
      * @param {number} deltaTime
@@ -11,6 +30,108 @@ class GameObject {
     update(deltaTime) { }
 
     draw() { }
+
+    drawText() { }
+}
+
+class ImageButton extends GameObject {
+    get objectType() { return 'Button'; }
+
+    constructor(x, y, width, height, texture, onClick = () => { }) {
+        super();
+
+        this.x = x;
+        this.y = y;
+
+        this.width = width;
+        this.height = height;
+
+        this.texture = texture;
+        this.visible = true;
+
+        this.onClick = onClick;
+    }
+
+    getBounds() {
+        const { x, y, width, height } = this;
+        return { x, y, width, height };
+    }
+
+    /**
+     * @param {ClickEvent} event
+     */
+    click(event) {
+        if (!this.visible) return;
+
+        this.onClick(event);
+    }
+
+    draw() {
+        if (!this.visible) return;
+
+        const [x, y] = positionWorldToScreen(this.x, this.y);
+        const [w, h] = sizeWorldToScreen(this.width, this.height);
+
+        spriteBatch.drawRectangle(textures[this.texture], x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+    }
+}
+
+class Button extends GameObject {
+    get objectType() { return 'Button'; }
+
+    constructor(x, y, width, height, text, onClick = () => { }) {
+        super();
+
+        this.x = x;
+        this.y = y;
+
+        this.width = width;
+        this.height = height;
+
+        this.text = text;
+        this.fontSize = 5;
+        this.visible = true;
+
+        this.onClick = onClick;
+    }
+
+    getBounds() {
+        const { x, y, width, height } = this;
+        return { x, y, width, height };
+    }
+
+    /**
+     * @param {ClickEvent} event
+     */
+    click(event) {
+        if (!this.visible) return;
+
+        this.onClick(event);
+    }
+
+    draw() {
+        if (!this.visible) return;
+
+        const [x, y] = positionWorldToScreen(this.x, this.y);
+        const [w, h] = sizeWorldToScreen(this.width, this.height);
+
+        spriteBatch.drawRectangle(textures['blue_button00'], x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
+    }
+
+    drawText() {
+        if (!this.visible) return;
+
+        const [x, y] = positionWorldToScreen(this.x, this.y);
+        const [w, h] = sizeWorldToScreen(this.width, this.height);
+        const [_w, fontSize] = sizeWorldToScreen(0, this.fontSize);
+
+        let text = this.text;
+        if (typeof text === 'function') {
+            text = text();
+        }
+
+        textSpriteBatch.drawStringOffCenter(textures['font'], font, x + w / 2, y + h / 2 - fontSize * 0.75, translations[language][text], fontSize, 1, 1, 1, 1);
+    }
 }
 
 class Ball extends GameObject {
@@ -75,11 +196,10 @@ class Ball extends GameObject {
             this.offsetX *= 0.975;
             this.offsetY *= 0.975;
         }
-
     }
 
     draw() {
-        super.draw();
+        if (state === 'menu') return;
 
         const texture = textures[Ball.types[this.type].texture];
         const [x, y] = positionWorldToScreen(this.x, this.y);
@@ -118,6 +238,8 @@ class Projectile extends Ball {
     }
 
     draw() {
+        if (state === 'menu') return;
+
         const texture = textures[Ball.types[this.type].texture];
         const [x, y] = positionWorldToScreen(this.x, this.y);
         const [w, h] = sizeWorldToScreen(2 * this.radius, 2 * this.radius);
@@ -187,6 +309,8 @@ class FallingBall extends Ball {
     }
 
     draw() {
+        if (state === 'menu') return;
+
         const texture = textures[Ball.types[this.type].texture];
         const [x, y] = positionWorldToScreen(this.x, this.y);
         const [w, h] = sizeWorldToScreen(2 * this.radius, 2 * this.radius);
@@ -225,6 +349,8 @@ class ExplodingBall extends Ball {
     }
 
     draw() {
+        if (state === 'menu') return;
+
         const texture = textures[Ball.types[this.type].texture];
         const [x, y] = positionWorldToScreen(this.x, this.y);
         const [w, h] = sizeWorldToScreen(2 * this.radius, 2 * this.radius);
@@ -435,6 +561,9 @@ let renderer = null;
 /** @type {SpriteBatch} */
 let spriteBatch = null;
 
+/** @type {SpriteBatch} */
+let textSpriteBatch = null;
+
 /** @type {Framebuffer} */
 let framebufferMultisample = null;
 
@@ -467,6 +596,13 @@ let projectile = null;
 let nextProjectileType = 0;
 
 let state = 'start';
+
+let btnContinue = null;
+let btnNewGame = null;
+let btnLanguage = null;
+let btnMenu = null;
+let btnPause = null;
+let btnMute = null;
 
 const ballRadius = 4;
 const levelWidth = 45;
@@ -504,6 +640,9 @@ const translations = {
         press: 'Нажмите',
         toStartGame: 'чтобы начать игру',
         toContinue: 'чтобы продолжить',
+        language: 'Язык: ',
+        ru: 'Язык: Русский',
+        en: 'Язык: Английский',
     },
     en: {
         newGame: 'New Game',
@@ -514,6 +653,8 @@ const translations = {
         press: 'Press',
         toStartGame: 'to start game',
         toContinue: 'to continue',
+        ru: 'Language: Russian',
+        en: 'Language: English',
     },
 };
 
@@ -675,7 +816,7 @@ function createOrResetProjectile() {
 }
 
 function createOrResetLevel() {
-    gameObjects = [];
+    gameObjects = gameObjects.filter(gameObject => gameObject.objectType !== 'Ball');
     firstLayer = [];
 
     const minY = -difficulty;
@@ -707,6 +848,105 @@ function resize() {
     pongFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
 }
 
+function continueGame() {
+    state = 'idle';
+
+    btnContinue.visible = false;
+    btnNewGame.visible = false;
+    btnLanguage.visible = false;
+
+    btnMenu.visible = true;
+    btnPause.visible = true;
+    btnMute.visible = true;
+}
+
+function newGame() {
+    difficulty = 1;
+    score = 0;
+    levelStartScore = 0;
+    state = 'idle';
+    createOrResetLevel();
+
+    btnContinue.visible = false;
+    btnNewGame.visible = false;
+    btnLanguage.visible = false;
+
+    btnMenu.visible = true;
+    btnPause.visible = true;
+    btnMute.visible = true;
+}
+
+function setLanguage(value) {
+    const availableLanguages = Object.keys(translations);
+    if (availableLanguages.includes(value))
+        language = value;
+    else if (['be', 'kk', 'uk', 'uz'].includes(value))
+        language = 'ru';
+    else
+        language = 'en';
+
+    btnLanguage.text = language;
+
+    Sentry.setTag('language', language);
+    console.log(`Language changed to ${language}`);
+}
+
+function nextLanguage() {
+    const availableLanguages = Object.keys(translations);
+    const languageIndex = availableLanguages.findIndex(item => item === language);
+    if (languageIndex === -1 || languageIndex === availableLanguages.length - 1)
+        setLanguage(availableLanguages[0]);
+    else
+        setLanguage(availableLanguages[languageIndex + 1]);
+
+}
+
+function menu() {
+    state = 'menu';
+
+    btnContinue.visible = true;
+    btnNewGame.visible = true;
+    btnLanguage.visible = true;
+
+    btnMenu.visible = false;
+    btnPause.visible = false;
+    btnMute.visible = false;
+}
+
+function togglePause() {
+    paused = !paused;
+    btnPause.texture = paused ? 'btn_play' : 'btn_pause';
+
+    if (hidden || paused || muted) {
+        audioSystem?.suspend();
+
+        if (typeof window.yandexGamesSDK !== 'undefined')
+            window.yandexGamesSDK.features.GameplayAPI?.stop();
+    } else {
+        audioSystem?.resume();
+
+        if (typeof window.yandexGamesSDK !== 'undefined')
+            window.yandexGamesSDK.features.GameplayAPI?.start();
+    }
+}
+
+function toggleMute() {
+    muted = !muted;
+    btnMute.texture = muted ? 'btn_mute' : 'btn_unmute';
+
+    if (hidden || paused || muted) {
+        audioSystem?.suspend();
+
+        if (typeof window.yandexGamesSDK !== 'undefined')
+            window.yandexGamesSDK.features.GameplayAPI?.stop();
+    } else {
+        audioSystem?.resume();
+
+        if (typeof window.yandexGamesSDK !== 'undefined')
+            window.yandexGamesSDK.features.GameplayAPI?.start();
+    }
+}
+
 async function main() {
     Sentry.init({
         dsn: "https://467bb70629ddf06d676a334cf029ae10@o4507607024140288.ingest.de.sentry.io/4507607028662352",
@@ -732,6 +972,7 @@ async function main() {
 
     renderer = new Renderer(context, canvas.width, canvas.height);
     spriteBatch = new SpriteBatch(renderer);
+    textSpriteBatch = new SpriteBatch(renderer);
     framebufferMultisample = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
     framebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
     pingFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
@@ -741,14 +982,31 @@ async function main() {
         ...[
             'background_0', 'background_0_blur', 'background_1', 'background_1_blur', 'background_2', 'background_2_blur',
             'ball0', 'ball1', 'ball2', 'ball3', 'ball4', 'ball5', 'ball6', 'ball7',
-            'blue_button00', 'btn_mute', 'btn_pause', 'btn_play', 'btn_unmute', 'circle_05', 'lang_en', 'lang_ru', 'rays', 'white',
+            'blue_button00', 'btn_menu', 'btn_mute', 'btn_pause', 'btn_play', 'btn_unmute', 'circle_05', 'lang_en', 'lang_ru', 'rays', 'white',
         ].map(name => loadImage(`./assets/${name}.png`).then(image => textures[name] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.SRGB8_ALPHA8).setImage(image))),
         loadImage('./assets/font.png').then(image => textures['font'] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.RGBA8).setImage(image)),
         loadBinary('./assets/font.bin').then(fontData => font = new Font().deserializeData(fontData)),
     ]);
 
+    gameObjects.push(btnContinue = new Button(-0.45 * levelWidth, 35, 0.9 * levelWidth, 8, 'continue', continueGame));
+    btnContinue.fontSize = 4.5;
+
+    gameObjects.push(btnNewGame = new Button(-0.45 * levelWidth, 45, 0.9 * levelWidth, 8, 'newGame', newGame));
+    gameObjects.push(btnLanguage = new Button(-0.45 * levelWidth, 55, 0.9 * levelWidth, 8, language, nextLanguage));
+    btnLanguage.fontSize = 3;
+
+    gameObjects.push(btnMenu = new ImageButton(-0.45 * levelWidth, 2, 8, 8, 'btn_menu', menu));
+    btnMenu.visible = false;
+
+    gameObjects.push(btnPause = new ImageButton(-0.45 * levelWidth + 10, 2, 8, 8, 'btn_pause', togglePause));
+    btnPause.visible = false;
+
+    gameObjects.push(btnMute = new ImageButton(-0.45 * levelWidth + 20, 2, 8, 8, 'btn_unmute', toggleMute));
+    btnMute.visible = false;
+
     document.addEventListener('visibilitychange', function () {
         hidden = document.hidden;
+
         if (hidden || paused || muted) {
             audioSystem?.suspend();
 
@@ -783,65 +1041,21 @@ async function main() {
             ]).then(result => impactSounds = result);
         }
 
-        // Language button
-        if (event.clientX > 10 && event.clientX < 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
-            return nextLanguage();
-        }
+        cursorX = event.clientX;
+        cursorY = event.clientY;
 
-        if (event.clientX > 10 + 64 + 10 && event.clientX < 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
-            paused = !paused;
-            if (hidden || paused || muted) {
-                audioSystem?.suspend();
-
-                if (typeof window.yandexGamesSDK !== 'undefined')
-                    window.yandexGamesSDK.features.GameplayAPI?.stop();
-            } else {
-                audioSystem?.resume();
-
-                if (typeof window.yandexGamesSDK !== 'undefined')
-                    window.yandexGamesSDK.features.GameplayAPI?.start();
-            }
-
-            return;
-        }
-
-        if (event.clientX > 10 + (64 + 10) * 2 && event.clientX < 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64) {
-            muted = !muted;
-            if (hidden || paused || muted) {
-                audioSystem?.suspend();
-
-                if (typeof window.yandexGamesSDK !== 'undefined')
-                    window.yandexGamesSDK.features.GameplayAPI?.stop();
-            } else {
-                audioSystem?.resume();
-
-                if (typeof window.yandexGamesSDK !== 'undefined')
-                    window.yandexGamesSDK.features.GameplayAPI?.start();
-            }
-
-            return;
-        }
-
-        if (state === 'menu') {
-            cursorX = event.clientX;
-            cursorY = event.clientY;
-
-            const fontSize = 32;
-            const [w, _h] = sizeWorldToScreen(0.8 * levelWidth, 0);
-
-            if (cursorX > renderer.width / 2 - w / 2 && cursorX < renderer.width / 2 + w / 2) {
-                if (cursorY > renderer.height / 2 - fontSize - 72 / 2 && cursorY < renderer.height / 2 - fontSize + 72 / 2) {
-                    state = 'idle';
-                } else if (cursorY > renderer.height / 2 + fontSize * 2 - 72 / 2 && cursorY < renderer.height / 2 + fontSize * 2 + 72 / 2) {
-                    difficulty = 1;
-                    score = 0;
-                    levelStartScore = 0;
-                    state = 'idle';
-                    createOrResetLevel();
-                }
+        const clickEvent = new ClickEvent();
+        for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
+            const { x, y, width, height } = button.getBounds();
+            const [x1, y1] = positionWorldToScreen(x, y);
+            const [w1, h1] = sizeWorldToScreen(width, height);
+            if (cursorX > x1 && cursorX <= x1 + w1 && cursorY > y1 && cursorY <= y1 + h1) {
+                button.click(clickEvent);
+                return;
             }
         }
-        else if (state === 'start') {
+
+        if (state === 'start') {
             state = 'idle';
 
             GameAnalytics('addProgressionEvent', 'Start', `level_${difficulty.toString().padStart(3, '0')}`, '', '', score);
@@ -877,15 +1091,19 @@ async function main() {
     document.addEventListener('pointerdown', event => {
         event.preventDefault();
 
-        if (paused || hidden
-            || event.clientX > 10 && event.clientX < 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > 10 + 64 + 10 && event.clientX < 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > 10 + (64 + 10) * 2 && event.clientX < 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-        )
-            return;
+        if (paused || hidden) return;
 
         cursorX = event.clientX;
         cursorY = event.clientY;
+
+        for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
+            const { x, y, width, height } = button.getBounds();
+            const [x1, y1] = positionWorldToScreen(x, y);
+            const [w1, h1] = sizeWorldToScreen(width, height);
+            if (cursorX > x1 && cursorX <= x1 + w1 && cursorY > y1 && cursorY <= y1 + h1) {
+                return;
+            }
+        }
 
         const [_x, y] = positionScreenToWorld(cursorX, cursorY);
         showTrajectory = event.button === 0 && y < 90;
@@ -894,14 +1112,19 @@ async function main() {
     document.addEventListener('pointermove', event => {
         event.preventDefault();
 
-        if (paused || hidden
-            || event.clientX > 10 && event.clientX < 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > 10 + 64 + 10 && event.clientX < 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > 10 + (64 + 10) * 2 && event.clientX < 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
-            return;
+        if (paused || hidden) return;
 
         cursorX = event.clientX;
         cursorY = event.clientY;
+
+        for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
+            const { x, y, width, height } = button.getBounds();
+            const [x1, y1] = positionWorldToScreen(x, y);
+            const [w1, h1] = sizeWorldToScreen(width, height);
+            if (cursorX > x1 && cursorX <= x1 + w1 && cursorY > y1 && cursorY <= y1 + h1) {
+                return;
+            }
+        }
 
         const [_x, y] = positionScreenToWorld(cursorX, cursorY);
         showTrajectory = event.buttons === 1 && y < 90;
@@ -910,14 +1133,19 @@ async function main() {
     document.addEventListener('pointerup', event => {
         event.preventDefault();
 
-        if (paused || hidden
-            || event.clientX > 10 && event.clientX < 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > 10 + 64 + 10 && event.clientX < 10 + 64 + 10 + 64 && event.clientY > 10 && event.clientY < 10 + 64
-            || event.clientX > 10 + (64 + 10) * 2 && event.clientX < 10 + (64 + 10) * 2 + 64 && event.clientY > 10 && event.clientY < 10 + 64)
-            return;
+        if (paused || hidden) return;
 
         cursorX = event.clientX;
         cursorY = event.clientY;
+
+        for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
+            const { x, y, width, height } = button.getBounds();
+            const [x1, y1] = positionWorldToScreen(x, y);
+            const [w1, h1] = sizeWorldToScreen(width, height);
+            if (cursorX > x1 && cursorX <= x1 + w1 && cursorY > y1 && cursorY <= y1 + h1) {
+                return;
+            }
+        }
 
         const [worldCursorX, worldCursorY] = positionScreenToWorld(cursorX, cursorY);
         if (state === 'idle' && event.button === 0 && worldCursorY < 90) {
@@ -990,29 +1218,6 @@ async function main() {
                 console.error(reason);
         });
     }
-}
-
-function setLanguage(value) {
-    const availableLanguages = Object.keys(translations);
-    if (availableLanguages.includes(value))
-        language = value;
-    else if (['be', 'kk', 'uk', 'uz'].includes(value))
-        language = 'ru';
-    else
-        language = 'en';
-
-    Sentry.setTag('language', language);
-    console.log(`Language changed to ${language}`);
-}
-
-function nextLanguage() {
-    const availableLanguages = Object.keys(translations);
-    const languageIndex = availableLanguages.findIndex(item => item === language);
-    if (languageIndex === -1 || languageIndex === availableLanguages.length - 1)
-        setLanguage(availableLanguages[0]);
-    else
-        setLanguage(availableLanguages[languageIndex + 1]);
-
 }
 
 function getLinkedBalls(ball, except = []) {
@@ -1303,22 +1508,11 @@ function update(timestamp) {
         spriteBatch.begin();
         spriteBatch.drawRectangle(textures['white'], 0, 0, renderer.width, renderer.height, 0, 0, 1, 1, 0, 0, 0, 0.75);
         spriteBatch.drawRotatedRectangleOffCenter(textures['rays'], renderer.width / 2, renderer.height / 2, renderer.height * 0.5, renderer.height * 0.5, timestamp / 10000, 0, 0, 1, 1, 1, 1, 1, 0.5);
+
+        for (const gameObject of gameObjects)
+            gameObject.draw();
+
         spriteBatch.end();
-
-        // Draw buttons
-        {
-            spriteBatch.begin();
-            spriteBatch.drawRectangle(textures[`lang_${language}`], 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.end();
-
-            const fontSize = 32;
-            const [w, _h] = sizeWorldToScreen(0.8 * levelWidth, 0);
-
-            spriteBatch.begin();
-            spriteBatch.drawRectangleOffCenter(textures['blue_button00'], renderer.width / 2, renderer.height / 2 - fontSize, w, 72, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.drawRectangleOffCenter(textures['blue_button00'], renderer.width / 2, renderer.height / 2 + fontSize * 2, w, 72, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.end();
-        }
 
         // Draw text
         if (font !== null) {
@@ -1330,15 +1524,12 @@ function update(timestamp) {
                 .setUniform('screenPxRange', Math.max(2, fontSize * atlasPxRange / atlasGlyphSize))
                 .setUniform('outlineBias', 0.25);
 
-            textures['font'].bind();
-            renderer.beginGeometry();
+            textSpriteBatch.begin();
 
-            renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 2.25, translations[language].continue, fontSize, 1, 1, 1, 1);
-            renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 - fontSize * 1.25, translations[language].level + ' ' + difficulty, fontSize * 0.75, 1, 1, 1, 1);
+            for (const gameObject of gameObjects)
+                gameObject.drawText();
 
-            renderer.drawStringOffCenter(font, renderer.width / 2, renderer.height / 2 + fontSize * 1.25, translations[language].newGame, fontSize, 1, 1, 1, 1);
-
-            renderer.endGeometry();
+            textSpriteBatch.end();
         }
     } else {
         spriteBatch.begin();
@@ -1361,7 +1552,10 @@ function update(timestamp) {
             spriteBatch.drawRectangleOffCenter(texture1, renderer.width / 2, renderer.height / 2, w1, renderer.height, 0, 0, 1, 1, 1, 1, 1, 1);
         }
 
-        for (const gameObject of gameObjects)
+        for (const gameObject of gameObjects.filter(gameObject => gameObject.objectType !== 'Button'))
+            gameObject.draw();
+
+        for (const gameObject of gameObjects.filter(gameObject => gameObject.objectType === 'Button'))
             gameObject.draw();
 
         // Draw next projectile type
@@ -1390,15 +1584,6 @@ function update(timestamp) {
 
         spriteBatch.end();
 
-        // Draw buttons
-        {
-            spriteBatch.begin();
-            spriteBatch.drawRectangle(textures[`lang_${language}`], 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.drawRectangle(paused ? textures['btn_play'] : textures['btn_pause'], 10 + 64 + 10, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.drawRectangle(muted ? textures['btn_mute'] : textures['btn_unmute'], 10 + (64 + 10) * 2, 10, 64, 64, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.end();
-        }
-
         // Draw text
         if (font !== null) {
             const fontSize = 32;
@@ -1409,39 +1594,39 @@ function update(timestamp) {
                 .setUniform('screenPxRange', Math.max(2, fontSize * atlasPxRange / atlasGlyphSize))
                 .setUniform('outlineBias', 0.25);
 
-            spriteBatch.begin();
+            textSpriteBatch.begin();
 
             if (state !== 'win' && state !== 'fail') {
                 const [x, y] = positionWorldToScreen(levelWidth / 2, 90);
                 const scoreStr = score.toString().padStart(6, '0') + ' ';
                 const scoreWidth = renderer.measureString(font, scoreStr, fontSize);
 
-                spriteBatch.drawString(textures['font'], font, x - scoreWidth, y - fontSize - 10, scoreStr, fontSize, 1, 1, 1, 1);
+                textSpriteBatch.drawString(textures['font'], font, x - scoreWidth, y - fontSize - 10, scoreStr, fontSize, 1, 1, 1, 1);
             }
 
             if (state === 'start') {
                 if (difficulty === 1) {
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 1.75, translations[language].press, fontSize, 1, 1, 1, 1);
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, translations[language].toStartGame, fontSize, 1, 1, 1, 1);
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 1.75, translations[language].press, fontSize, 1, 1, 1, 1);
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, translations[language].toStartGame, fontSize, 1, 1, 1, 1);
                 } else {
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].level + ' ' + difficulty, fontSize, 1, 1, 1, 1);
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].level + ' ' + difficulty, fontSize, 1, 1, 1, 1);
 
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
-                    spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
                 }
             } else if (state === 'win') {
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].win, fontSize, 1, 1, 1, 1);
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].win, fontSize, 1, 1, 1, 1);
 
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
             } else if (state === 'fail') {
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].fail, fontSize, 1, 1, 1, 1);
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].fail, fontSize, 1, 1, 1, 1);
 
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
-                spriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
             }
 
-            spriteBatch.end();
+            textSpriteBatch.end();
         }
     }
 

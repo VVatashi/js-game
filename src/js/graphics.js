@@ -857,7 +857,7 @@ export class Renderer {
             }
 
             this.drawChar(font, x + offset, y, charCode, size, r, g, b, a);
-            offset += size * glyph.advance;
+            offset += size * glyph.advance * 1.1;
         }
 
         return this;
@@ -894,7 +894,7 @@ export class Renderer {
                 continue;
             }
 
-            width += size * glyph.advance;
+            width += size * glyph.advance * 1.1;
         }
 
         return width;
