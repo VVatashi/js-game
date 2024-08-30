@@ -231,6 +231,7 @@ class Projectile extends Ball {
             || this.x + this.radius > levelWidth / 2 && this.velocityX > 0) {
             this.velocityX = -this.velocityX;
             playImpactSound();
+            playMeowSound();
         }
 
         if (isShot)
@@ -583,6 +584,11 @@ let audioSystem = null
 let impactSounds = [];
 
 let nextImpactSound = 0;
+
+/** @type {AudioBuffer[]} */
+let meowSounds = [];
+
+let nextMeowSound = 0;
 
 /** @type {GameObject[]} */
 let gameObjects = [];
@@ -1041,6 +1047,32 @@ async function main() {
                 loadAudio('./assets/impactGlass_medium_003.mp3'),
                 loadAudio('./assets/impactGlass_medium_004.mp3'),
             ]).then(result => impactSounds = result);
+
+            // Load meow sounds
+            Promise.all([
+                loadAudio('./assets/meow1.mp3'),
+                loadAudio('./assets/meow2.mp3'),
+                loadAudio('./assets/meow3.mp3'),
+                loadAudio('./assets/meow4.mp3'),
+                loadAudio('./assets/meow5.mp3'),
+                loadAudio('./assets/meow6.mp3'),
+                loadAudio('./assets/meow7.mp3'),
+                loadAudio('./assets/meow8.mp3'),
+                loadAudio('./assets/meow9.mp3'),
+                loadAudio('./assets/meow10.mp3'),
+                loadAudio('./assets/meow11.mp3'),
+                loadAudio('./assets/meow12.mp3'),
+                loadAudio('./assets/meow13.mp3'),
+                loadAudio('./assets/meow14.mp3'),
+                loadAudio('./assets/meow15.mp3'),
+                loadAudio('./assets/meow16.mp3'),
+                loadAudio('./assets/meow17.mp3'),
+                loadAudio('./assets/meow18.mp3'),
+                loadAudio('./assets/meow19.mp3'),
+                loadAudio('./assets/meow20.mp3'),
+                loadAudio('./assets/meow21.mp3'),
+                loadAudio('./assets/meow22.mp3'),
+            ]).then(result => meowSounds = result);
         }
 
         cursorX = event.clientX;
@@ -1301,6 +1333,12 @@ function playImpactSound() {
     audioSystem.play(impactSounds[nextImpactSound++ % impactSounds.length]);
 }
 
+function playMeowSound() {
+    if (audioSystem === null || muted || meowSounds.length === 0) return;
+
+    audioSystem.play(meowSounds[nextMeowSound++ % meowSounds.length]);
+}
+
 /** @type {Set<GameObject>} */
 const objectDeleteQueue = new Set();
 
@@ -1357,6 +1395,7 @@ function update(timestamp) {
                 }
 
                 playImpactSound();
+                playMeowSound();
 
                 // Add ball on the contact point
                 const ball = new Ball(x, y, gameObject.radius, gameObject.velocityX, gameObject.velocityY, projectile.type);
@@ -1389,7 +1428,7 @@ function update(timestamp) {
                     let timeOffset = 0;
                     for (const ball of [...linkedSet]) {
                         timeOffset += 50 + Math.random() * 50;
-                        setTimeout(playImpactSound, timeOffset);
+                        setTimeout(playMeowSound, timeOffset);
                     }
 
                     // Find neighbour balls
