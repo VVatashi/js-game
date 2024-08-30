@@ -175,12 +175,12 @@ class Ball extends GameObject {
             return;
         }
 
-        if (state === 'idle' || state === 'shot') {
+        if (state === 'idle') {
             this.x += this.velocityX * deltaTime;
             this.y += this.velocityY * deltaTime;
         }
 
-        if (projectile !== null && state === 'shot') {
+        if (projectile !== null && isShot) {
             const distanceX = projectile.x - this.x;
             const distanceY = projectile.y - this.y;
             const distance = magnitude(distanceX, distanceY);
@@ -233,7 +233,7 @@ class Projectile extends Ball {
             playImpactSound();
         }
 
-        if (state === 'shot')
+        if (isShot)
             this.angle += deltaTime / 100;
     }
 
@@ -619,6 +619,7 @@ let showTrajectory = false;
 const LEADERBOARD = 'puzzlebobble';
 
 let player = null;
+let isShot = false;
 
 const backgrounds = [
     { textureName: 'background_0', blurTextureName: 'background_0_blur' },
@@ -865,6 +866,7 @@ function newGame() {
     score = 0;
     levelStartScore = 0;
     state = 'idle';
+    isShot = false;
     createOrResetLevel();
 
     btnContinue.visible = false;
@@ -1046,17 +1048,26 @@ async function main() {
 
         const clickEvent = new ClickEvent();
         for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
+            if (!button.visible) continue;
+
             const { x, y, width, height } = button.getBounds();
             const [x1, y1] = positionWorldToScreen(x, y);
             const [w1, h1] = sizeWorldToScreen(width, height);
             if (cursorX > x1 && cursorX <= x1 + w1 && cursorY > y1 && cursorY <= y1 + h1) {
-                button.click(clickEvent);
-                return;
+                return button.click(clickEvent);
             }
         }
 
         if (state === 'start') {
             state = 'idle';
+
+            btnContinue.visible = false;
+            btnNewGame.visible = false;
+            btnLanguage.visible = false;
+
+            btnMenu.visible = true;
+            btnPause.visible = true;
+            btnMute.visible = true;
 
             GameAnalytics('addProgressionEvent', 'Start', `level_${difficulty.toString().padStart(3, '0')}`, '', '', score);
         } else if (['win', 'fail'].includes(state)) {
@@ -1091,12 +1102,14 @@ async function main() {
     document.addEventListener('pointerdown', event => {
         event.preventDefault();
 
-        if (paused || hidden) return;
+        if (paused || hidden || isShot) return;
 
         cursorX = event.clientX;
         cursorY = event.clientY;
 
         for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
+            if (!button.visible) continue;
+
             const { x, y, width, height } = button.getBounds();
             const [x1, y1] = positionWorldToScreen(x, y);
             const [w1, h1] = sizeWorldToScreen(width, height);
@@ -1112,12 +1125,14 @@ async function main() {
     document.addEventListener('pointermove', event => {
         event.preventDefault();
 
-        if (paused || hidden) return;
+        if (paused || hidden || isShot) return;
 
         cursorX = event.clientX;
         cursorY = event.clientY;
 
         for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
+            if (!button.visible) continue;
+
             const { x, y, width, height } = button.getBounds();
             const [x1, y1] = positionWorldToScreen(x, y);
             const [w1, h1] = sizeWorldToScreen(width, height);
@@ -1139,6 +1154,8 @@ async function main() {
         cursorY = event.clientY;
 
         for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
+            if (!button.visible) continue;
+
             const { x, y, width, height } = button.getBounds();
             const [x1, y1] = positionWorldToScreen(x, y);
             const [w1, h1] = sizeWorldToScreen(width, height);
@@ -1148,8 +1165,8 @@ async function main() {
         }
 
         const [worldCursorX, worldCursorY] = positionScreenToWorld(cursorX, cursorY);
-        if (state === 'idle' && event.button === 0 && worldCursorY < 90) {
-            state = 'shot';
+        if (state === 'idle' && !isShot && event.button === 0 && worldCursorY < 90) {
+            isShot = true;
 
             const offsetX = worldCursorX;
             const offsetY = Math.min(worldCursorY, 95) - 100;
@@ -1160,7 +1177,7 @@ async function main() {
 
             projectile.velocityX = directionX * speed;
             projectile.velocityY = directionY * speed;
-        } else if (state === 'idle' && (event.button === 2 || event.button === 0 && worldCursorY >= 90)) {
+        } else if (state === 'idle' && !isShot && (event.button === 2 || event.button === 0 && worldCursorY >= 90)) {
             const type = projectile.type;
             projectile.type = nextProjectileType;
             nextProjectileType = type;
@@ -1182,6 +1199,10 @@ async function main() {
     if (lastDifficulty > 1) {
         difficulty = lastDifficulty;
         state = 'menu';
+    } else {
+        btnContinue.visible = false;
+        btnNewGame.visible = false;
+        btnLanguage.visible = false;
     }
 
     const lastScore = Number(localStorage.getItem('last_score') || 0);
@@ -1317,7 +1338,7 @@ function update(timestamp) {
         }
     }
 
-    if (state === 'shot') {
+    if (isShot) {
         // Check ball/projectile collision
         for (const gameObject of gameObjects) {
             if (gameObject.objectType !== 'Ball') continue;
@@ -1421,7 +1442,7 @@ function update(timestamp) {
                 }
 
                 setTimeout(createOrResetProjectile);
-                state = 'idle';
+                isShot = false;
                 break;
             }
         }
@@ -1430,7 +1451,7 @@ function update(timestamp) {
     // Reset projectile if outside the level
     if (projectile !== null && (projectile.y < 0 || projectile.y > 100)) {
         setTimeout(createOrResetProjectile);
-        state = 'idle';
+        isShot = false;
     }
 
     if (objectDeleteQueue.size) {
