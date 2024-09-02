@@ -1709,24 +1709,6 @@ function update(timestamp) {
     framebufferMultisample.unbind();
     framebufferMultisample.blit(pongFramebuffer);
 
-    for (let i = 0; i < 4; i++) {
-        blurShaderProgram.bind().setUniform('horizontal', true);
-        pingFramebuffer.bind();
-        pongFramebuffer.attachment.bind();
-        renderer.beginGeometry();
-        renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
-        renderer.endGeometry();
-        pingFramebuffer.unbind();
-
-        blurShaderProgram.bind().setUniform('horizontal', false);
-        pongFramebuffer.bind();
-        pingFramebuffer.attachment.bind();
-        renderer.beginGeometry();
-        renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
-        renderer.endGeometry();
-        pongFramebuffer.unbind();
-    }
-
     context.viewport(0, 0, renderer.width, renderer.height);
     screenShaderProgram.bind().setUniformInteger('blurTexture', 1).setUniform('blurBrightness', (Math.sin(8 * timestamp / 1000) + 1) / 2);
     framebuffer.attachment.bind();
