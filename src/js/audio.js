@@ -27,14 +27,14 @@ export class AudioSystem {
     /**
      * @param {AudioBuffer} buffer 
      */
-    play(buffer, loop = false) {
+    play(buffer, loop = false, offset = 0) {
         const { context, gainNode } = this;
 
         const source = context.createBufferSource();
         source.buffer = buffer;
         source.loop = loop;
         source.connect(gainNode);
-        source.start();
+        source.start(context.currentTime + offset / 1000);
 
         return this;
     }

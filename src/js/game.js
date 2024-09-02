@@ -251,8 +251,8 @@ class Projectile extends Ball {
 class Particle extends Ball {
     get objectType() { return 'Particle'; }
 
-    constructor(x, y, radius, velocityX, velocityY, texture, type) {
-        super(x, y, radius, velocityX, velocityY, texture, type);
+    constructor(x, y, radius, velocityX, velocityY, type) {
+        super(x, y, radius, velocityX, velocityY, type);
 
         this.lifetime = 250 * Math.random();
     }
@@ -282,8 +282,8 @@ class Particle extends Ball {
 class FallingBall extends Ball {
     get objectType() { return 'FallingBall'; }
 
-    constructor(x, y, radius, velocityX, velocityY, texture, type) {
-        super(x, y, radius, velocityX, velocityY, texture, type);
+    constructor(x, y, radius, velocityX, velocityY, type) {
+        super(x, y, radius, velocityX, velocityY, type);
 
         this.lifetime = 5000;
     }
@@ -323,10 +323,11 @@ class FallingBall extends Ball {
 class ExplodingBall extends Ball {
     get objectType() { return 'ExplodingBall'; }
 
-    constructor(x, y, radius, velocityX, velocityY, texture, type) {
-        super(x, y, radius, velocityX, velocityY, texture, type);
+    constructor(x, y, radius, velocityX, velocityY, type, explodeAfter = 0) {
+        super(x, y, radius, velocityX, velocityY, type);
 
         this.lifetime = 200;
+        this.explodeAfter = explodeAfter;
     }
 
     /**
@@ -341,6 +342,26 @@ class ExplodingBall extends Ball {
 
         this.x += this.velocityX * deltaTime;
         this.y += this.velocityY * deltaTime;
+
+        if (this.explodeAfter > 0) {
+            this.explodeAfter -= deltaTime;
+            return;
+        }
+
+        if (this.lifetime === 200) {
+            // Create particles
+            for (let i = 0; i < 10; i++) {
+                let velocityX = 2 * Math.random() - 1;
+                let velocityY = 2 * Math.random() - 1;
+                [velocityX, velocityY] = normalize(velocityX, velocityY);
+
+                velocityX *= 0.025;
+                velocityY *= 0.025;
+
+                const particleRadius = ballRadius * 0.25;
+                gameObjects.push(new Particle(this.x, this.y, particleRadius, velocityX, velocityY, this.type));
+            }
+        }
 
         this.radius *= 1.05;
         this.lifetime -= deltaTime;
@@ -447,54 +468,6 @@ void main() {
 }
 `;
 
-const BLUR_VERTEX_SHADER_SOURCE = `#version 300 es
-
-layout(location = 0) in vec2 position;
-layout(location = 1) in vec2 texCoords;
-layout(location = 2) in vec4 color;
-
-out vec2 fragTexCoords;
-
-void main() {
-    gl_Position = vec4(position, 0, 1);
-
-    fragTexCoords = texCoords;
-}
-`;
-
-const BLUR_FRAGMENT_SHADER_SOURCE = `#version 300 es
-
-precision mediump float;
-
-const float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
-
-uniform sampler2D colorTexture;
-uniform bool horizontal;
-
-in vec2 fragTexCoords;
-
-out vec4 color;
-
-void main() {
-    vec2 texelSize = 1.0 / vec2(textureSize(colorTexture, 0));
-    vec3 result = texture(colorTexture, fragTexCoords).rgb * weight[0];
-
-    if (horizontal) {
-        for (int i = 1; i < 5; i++) {
-            result += texture(colorTexture, fragTexCoords + vec2(texelSize.x * float(i), 0.0)).rgb * weight[i];
-            result += texture(colorTexture, fragTexCoords - vec2(texelSize.x * float(i), 0.0)).rgb * weight[i];
-        }
-    } else {
-        for (int i = 1; i < 5; i++) {
-            result += texture(colorTexture, fragTexCoords + vec2(0.0, texelSize.y * float(i))).rgb * weight[i];
-            result += texture(colorTexture, fragTexCoords - vec2(0.0, texelSize.y * float(i))).rgb * weight[i];
-        }
-    }
-
-    color = vec4(result, 1.0);
-}
-`;
-
 const SCREEN_VERTEX_SHADER_SOURCE = `#version 300 es
 
 layout(location = 0) in vec2 position;
@@ -515,17 +488,17 @@ const SCREEN_FRAGMENT_SHADER_SOURCE = `#version 300 es
 precision mediump float;
 
 uniform sampler2D colorTexture;
-uniform sampler2D blurTexture;
+uniform sampler2D overlayTexture;
 
-uniform float blurBrightness;
+uniform float overlayBrightness;
 
 in vec2 fragTexCoords;
 
 out vec4 color;
 
 void main() {
-    vec3 result = texture(colorTexture, fragTexCoords).rgb + blurBrightness * texture(blurTexture, fragTexCoords).rgb;
-    color = vec4(pow(result, vec3(1.0 / 2.2)), 1.0);
+    vec3 result = texture(colorTexture, fragTexCoords).rgb + overlayBrightness * texture(overlayTexture, fragTexCoords).rgb;
+    color = vec4(pow(result, vec3(1.0 / 2.4)), 1.0);
 }
 `;
 
@@ -546,9 +519,6 @@ let screenShaderProgram = null;
 
 /** @type {ShaderProgram} */
 let fontShaderProgram = null;
-
-/** @type {ShaderProgram} */
-let blurShaderProgram = null;
 
 /** @type {Object.<string, Texture>} */
 const textures = {};
@@ -572,10 +542,7 @@ let framebufferMultisample = null;
 let framebuffer = null;
 
 /** @type {Framebuffer} */
-let pingFramebuffer = null;
-
-/** @type {Framebuffer} */
-let pongFramebuffer = null;
+let overlayFramebuffer = null;
 
 /** @type {AudioSystem} */
 let audioSystem = null
@@ -670,6 +637,10 @@ let language = 'en';
 let hidden = false;
 let paused = false;
 let muted = false;
+
+const FALL_SPEED_BASE = 0.0005;
+
+let fallSpeed;
 
 async function loadText(url) {
     const response = await fetch(url);
@@ -826,11 +797,13 @@ function createOrResetLevel() {
     gameObjects = gameObjects.filter(gameObject => gameObject.objectType !== 'Ball');
     firstLayer = [];
 
+    fallSpeed = FALL_SPEED_BASE * Math.pow(1.1, difficulty);
+
     const minY = -difficulty;
     for (let y = minY; y < 5; y++)
         for (let x = -2; x < (y % 2 ? 2 : 3); x++) {
             const type = Math.floor(Math.min(difficulty + 3, Ball.types.length) * Math.random());
-            const gameObject = new Ball(2 * ballRadius * x + (y % 2 ? ballRadius : 0), ballRadius + 2 * ballRadius * y, ballRadius, 0, 0.0005, type);
+            const gameObject = new Ball(2 * ballRadius * x + (y % 2 ? ballRadius : 0), ballRadius + 2 * ballRadius * y, ballRadius, 0, fallSpeed, type);
             gameObjects.push(gameObject);
 
             if (y === minY) firstLayer.push(gameObject);
@@ -851,8 +824,7 @@ function resize() {
     renderer.resize(clientWidth, clientHeight);
     framebufferMultisample.resize(clientWidth, clientHeight).attachRenderbuffer(new Renderbuffer(context, clientWidth, clientHeight));
     framebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
-    pingFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
-    pongFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
+    overlayFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
 }
 
 function continueGame() {
@@ -976,15 +948,13 @@ async function main() {
     sceneShaderProgram = new ShaderProgram(context, SCENE_VERTEX_SHADER_SOURCE, SCENE_FRAGMENT_SHADER_SOURCE);
     screenShaderProgram = new ShaderProgram(context, SCREEN_VERTEX_SHADER_SOURCE, SCREEN_FRAGMENT_SHADER_SOURCE);
     fontShaderProgram = new ShaderProgram(context, FONT_VERTEX_SHADER_SOURCE, FONT_FRAGMENT_SHADER_SOURCE);
-    blurShaderProgram = new ShaderProgram(context, BLUR_VERTEX_SHADER_SOURCE, BLUR_FRAGMENT_SHADER_SOURCE);
 
     renderer = new Renderer(context, canvas.width, canvas.height);
     spriteBatch = new SpriteBatch(renderer);
     textSpriteBatch = new SpriteBatch(renderer);
     framebufferMultisample = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
     framebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
-    pingFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
-    pongFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
+    overlayFramebuffer = new Framebuffer(context, canvas.clientWidth, canvas.clientHeight);
 
     await Promise.all([
         ...[
@@ -1327,16 +1297,16 @@ function getNeighbourBalls(ball) {
     return neighbours;
 }
 
-function playImpactSound() {
+function playImpactSound(offset = 0) {
     if (audioSystem === null || muted || impactSounds.length === 0) return;
 
-    audioSystem.play(impactSounds[nextImpactSound++ % impactSounds.length]);
+    audioSystem.play(impactSounds[nextImpactSound++ % impactSounds.length], false, offset);
 }
 
-function playMeowSound() {
+function playMeowSound(offset = 0) {
     if (audioSystem === null || muted || meowSounds.length === 0) return;
 
-    audioSystem.play(meowSounds[nextMeowSound++ % meowSounds.length]);
+    audioSystem.play(meowSounds[nextMeowSound++ % meowSounds.length], false, offset);
 }
 
 /** @type {Set<GameObject>} */
@@ -1398,37 +1368,26 @@ function update(timestamp) {
                 playMeowSound();
 
                 // Add ball on the contact point
-                const ball = new Ball(x, y, gameObject.radius, gameObject.velocityX, gameObject.velocityY, projectile.type);
-                gameObjects.push(ball);
+                const addedBall = new Ball(x, y, gameObject.radius, gameObject.velocityX, gameObject.velocityY, projectile.type);
+                gameObjects.push(addedBall);
 
-                const linkedSet = new Set(getLinkedBallsOfSameType(ball));
+                const linkedSet = new Set(getLinkedBallsOfSameType(addedBall));
                 if (linkedSet.size > 2) {
                     for (const ball of [...linkedSet]) {
                         // Remove linked balls
                         removeObject(ball);
                         score += Ball.types[ball.type].score;
 
+                        const explodeAfter = 5 * magnitude(addedBall.x - ball.x, addedBall.y - ball.y);
+
                         // Create exploding ball for removed linked balls
-                        gameObjects.push(new ExplodingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ball.type));
-
-                        // Create particles for removed linked balls
-                        for (let i = 0; i < 10; i++) {
-                            let velocityX = 2 * Math.random() - 1;
-                            let velocityY = 2 * Math.random() - 1;
-                            [velocityX, velocityY] = normalize(velocityX, velocityY);
-
-                            velocityX *= 0.025;
-                            velocityY *= 0.025;
-
-                            const particleRadius = ballRadius * 0.25;
-                            gameObjects.push(new Particle(ball.x, ball.y, particleRadius, velocityX, velocityY, ball.type));
-                        }
+                        const explodingBall = new ExplodingBall(ball.x, ball.y, ballRadius, ball.velocityX, ball.velocityY, ball.type, explodeAfter);
+                        gameObjects.push(explodingBall);
                     }
 
                     let timeOffset = 0;
-                    for (const ball of [...linkedSet]) {
-                        timeOffset += 50 + Math.random() * 50;
-                        setTimeout(playMeowSound, timeOffset);
+                    for (let i = 0; i < Math.min(linkedSet.size, 3); i++) {
+                        playMeowSound(timeOffset += 75 + Math.random() * 50);
                     }
 
                     // Find neighbour balls
@@ -1709,12 +1668,12 @@ function update(timestamp) {
     }
 
     framebufferMultisample.unbind();
-    framebufferMultisample.blit(pongFramebuffer);
+    framebufferMultisample.blit(overlayFramebuffer);
 
     context.viewport(0, 0, renderer.width, renderer.height);
-    screenShaderProgram.bind().setUniformInteger('blurTexture', 1).setUniform('blurBrightness', (Math.sin(8 * timestamp / 1000) + 1) / 2);
+    screenShaderProgram.bind().setUniformInteger('overlayTexture', 1).setUniform('overlayBrightness', (Math.sin(8 * timestamp / 1000) + 1) / 2);
     framebuffer.attachment.bind();
-    pongFramebuffer.attachment.bind(1);
+    overlayFramebuffer.attachment.bind(1);
     renderer.beginGeometry();
     renderer.drawRectangleOffCenter(0, 0, 2, 2, 0, 0, 1, 1, 1, 1, 1, 1);
     renderer.endGeometry();
