@@ -816,15 +816,16 @@ function createOrResetLevel() {
 }
 
 function resize() {
-    const { clientWidth, clientHeight } = canvas;
+    const width = document.documentElement.clientWidth * window.devicePixelRatio;
+    const height = document.documentElement.clientHeight * window.devicePixelRatio;
 
-    canvas.width = clientWidth;
-    canvas.height = clientHeight;
+    canvas.width = width;
+    canvas.height = height;
 
-    renderer.resize(clientWidth, clientHeight);
-    framebufferMultisample.resize(clientWidth, clientHeight).attachRenderbuffer(new Renderbuffer(context, clientWidth, clientHeight));
-    framebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
-    overlayFramebuffer.resize(clientWidth, clientHeight).attachTexture(new Texture(context, context.TEXTURE_2D, clientWidth, clientHeight));
+    renderer.resize(width, height);
+    framebufferMultisample.resize(width, height).attachRenderbuffer(new Renderbuffer(context, width, height));
+    framebuffer.resize(width, height).attachTexture(new Texture(context, context.TEXTURE_2D, width, height));
+    overlayFramebuffer.resize(width, height).attachTexture(new Texture(context, context.TEXTURE_2D, width, height));
 }
 
 function continueGame() {
@@ -1045,8 +1046,8 @@ async function main() {
             ]).then(result => meowSounds = result);
         }
 
-        cursorX = event.clientX;
-        cursorY = event.clientY;
+        cursorX = event.clientX * window.devicePixelRatio;
+        cursorY = event.clientY * window.devicePixelRatio;
 
         const clickEvent = new ClickEvent();
         for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
@@ -1106,8 +1107,8 @@ async function main() {
 
         if (paused || hidden || isShot) return;
 
-        cursorX = event.clientX;
-        cursorY = event.clientY;
+        cursorX = event.clientX * window.devicePixelRatio;
+        cursorY = event.clientY * window.devicePixelRatio;
 
         for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
             if (!button.visible) continue;
@@ -1129,8 +1130,8 @@ async function main() {
 
         if (paused || hidden || isShot) return;
 
-        cursorX = event.clientX;
-        cursorY = event.clientY;
+        cursorX = event.clientX * window.devicePixelRatio;
+        cursorY = event.clientY * window.devicePixelRatio;
 
         for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
             if (!button.visible) continue;
@@ -1152,8 +1153,8 @@ async function main() {
 
         if (paused || hidden) return;
 
-        cursorX = event.clientX;
-        cursorY = event.clientY;
+        cursorX = event.clientX * window.devicePixelRatio;
+        cursorY = event.clientY * window.devicePixelRatio;
 
         for (const button of gameObjects.filter(gameObject => gameObject.objectType === 'Button')) {
             if (!button.visible) continue;
@@ -1618,33 +1619,59 @@ function update(timestamp) {
             textSpriteBatch.begin();
 
             if (state !== 'win' && state !== 'fail') {
-                const [x, y] = positionWorldToScreen(levelWidth / 2, 90);
+                const [_w, screenFontSize] = sizeWorldToScreen(0, 4);
                 const scoreStr = score.toString().padStart(6, '0') + ' ';
-                const scoreWidth = renderer.measureString(font, scoreStr, fontSize);
-
-                textSpriteBatch.drawString(textures['font'], font, x - scoreWidth, y - fontSize - 10, scoreStr, fontSize, 1, 1, 1, 1);
+                const scoreWidth = renderer.measureString(font, scoreStr, screenFontSize);
+                const [x, y] = positionWorldToScreen(levelWidth / 2, 89);
+                textSpriteBatch.drawString(textures['font'], font, x - scoreWidth, y - screenFontSize, scoreStr, screenFontSize, 1, 1, 1, 1);
             }
 
             if (state === 'start') {
                 if (difficulty === 1) {
-                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 1.75, translations[language].press, fontSize, 1, 1, 1, 1);
-                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.5, translations[language].toStartGame, fontSize, 1, 1, 1, 1);
-                } else {
-                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].level + ' ' + difficulty, fontSize, 1, 1, 1, 1);
+                    const [_w, screenFontSize] = sizeWorldToScreen(0, 4);
+                    let [x, y] = positionWorldToScreen(0, 50);
+                    y -= screenFontSize;
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].press, screenFontSize, 1, 1, 1, 1);
 
-                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
-                    textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
+                    y += screenFontSize;
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].toStartGame, screenFontSize, 1, 1, 1, 1);
+                } else {
+                    let [_w, screenFontSize] = sizeWorldToScreen(0, 4);
+                    let [x, y] = positionWorldToScreen(0, 50);
+                    y -= screenFontSize * 1.5;
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].level + ' ' + difficulty, screenFontSize, 1, 1, 1, 1);
+
+                    y += screenFontSize * 1.5;
+                    screenFontSize *= 0.75;
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].press, screenFontSize * 0.75, 1, 1, 1, 1);
+
+                    y += screenFontSize;
+                    textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].toContinue, screenFontSize * 0.75, 1, 1, 1, 1);
                 }
             } else if (state === 'win') {
-                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].win, fontSize, 1, 1, 1, 1);
+                let [_w, screenFontSize] = sizeWorldToScreen(0, 4);
+                let [x, y] = positionWorldToScreen(0, 50);
+                y -= screenFontSize * 1.5;
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].win, screenFontSize, 1, 1, 1, 1);
 
-                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
-                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
+                y += screenFontSize * 1.5;
+                screenFontSize *= 0.75;
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].press, screenFontSize * 0.75, 1, 1, 1, 1);
+
+                y += screenFontSize;
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].toContinue, screenFontSize * 0.75, 1, 1, 1, 1);
             } else if (state === 'fail') {
-                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 - fontSize * 0.75, translations[language].fail, fontSize, 1, 1, 1, 1);
+                let [_w, screenFontSize] = sizeWorldToScreen(0, 4);
+                let [x, y] = positionWorldToScreen(0, 50);
+                y -= screenFontSize * 1.5;
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].fail, screenFontSize, 1, 1, 1, 1);
 
-                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 2.75, translations[language].press, fontSize * 0.75, 1, 1, 1, 1);
-                textSpriteBatch.drawStringOffCenter(textures['font'], font, renderer.width / 2, renderer.height / 2 + fontSize * 3.75, translations[language].toContinue, fontSize * 0.75, 1, 1, 1, 1);
+                y += screenFontSize * 1.5;
+                screenFontSize *= 0.75;
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].press, screenFontSize * 0.75, 1, 1, 1, 1);
+
+                y += screenFontSize;
+                textSpriteBatch.drawStringOffCenter(textures['font'], font, x, y, translations[language].toContinue, screenFontSize * 0.75, 1, 1, 1, 1);
             }
 
             textSpriteBatch.end();
