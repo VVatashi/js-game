@@ -1506,6 +1506,7 @@ function update(timestamp) {
             if (ball.y + ball.radius > 90) {
                 score = levelStartScore;
                 state = 'fail';
+                isShot = false;
 
                 GameAnalytics('addProgressionEvent', 'Fail', `level_${difficulty.toString().padStart(3, '0')}`, '', '', score);
                 break;
@@ -1522,6 +1523,7 @@ function update(timestamp) {
         localStorage.setItem('last_score', score);
 
         state = 'win';
+        isShot = false;
 
         // Submit score
         if (player !== null && typeof window.yandexGamesSDK !== 'undefined') {
