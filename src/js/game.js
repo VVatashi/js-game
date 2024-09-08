@@ -598,6 +598,7 @@ const backgrounds = [
     { textureName: 'background_0', blurTextureName: 'background_0_blur' },
     { textureName: 'background_1', blurTextureName: 'background_1_blur' },
     { textureName: 'background_2', blurTextureName: 'background_2_blur' },
+    { textureName: 'background_3', blurTextureName: 'background_3_blur' },
 ];
 
 let backgroundIndex = 0;
@@ -809,7 +810,7 @@ function createOrResetLevel() {
             if (y === minY) firstLayer.push(gameObject);
         }
 
-    backgroundIndex = Math.floor(Math.random() * backgrounds.length);
+    backgroundIndex = Math.floor(difficulty / 3) % backgrounds.length;
 
     nextProjectileType = getNextProjectileTypes();
     createOrResetProjectile();
@@ -933,7 +934,7 @@ async function main() {
         dsn: "https://467bb70629ddf06d676a334cf029ae10@o4507607024140288.ingest.de.sentry.io/4507607028662352",
         tracesSampleRate: 1.0,
         ignoreErrors: ['No parent to post message'],
-        release: '0.20.0',
+        release: '1.0.26',
     });
 
     GameAnalytics('configureBuild', '0.20.0');
@@ -959,7 +960,7 @@ async function main() {
 
     await Promise.all([
         ...[
-            'background_0', 'background_0_blur', 'background_1', 'background_1_blur', 'background_2', 'background_2_blur',
+            'background_0', 'background_0_blur', 'background_1', 'background_1_blur', 'background_2', 'background_2_blur', 'background_3', 'background_3_blur',
             'ball0', 'ball1', 'ball2', 'ball3', 'ball4', 'ball5', 'ball6', 'ball7',
             'blue_button00', 'btn_menu', 'btn_mute', 'btn_pause', 'btn_play', 'btn_unmute', 'circle_05', 'lang_en', 'lang_ru', 'rays', 'white',
         ].map(name => loadImage(`./assets/${name}.png`).then(image => textures[name] = new Texture(context, context.TEXTURE_2D, image.width, image.height, context.SRGB8_ALPHA8).setImage(image))),
@@ -1514,10 +1515,7 @@ function update(timestamp) {
             const y = renderer.height / 2;
             const w = 4 * levelWidth * scale;
             const h = 2 * renderer.height;
-
-            spriteBatch.drawRectangleOffCenter(texture, x - w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
             spriteBatch.drawRectangleOffCenter(texture, x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.drawRectangleOffCenter(texture, x + w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
 
             const texture1 = textures[backgrounds[backgroundIndex].textureName];
             const [w1, _h1] = sizeWorldToScreen(levelWidth, 0);
@@ -1564,10 +1562,7 @@ function update(timestamp) {
             const y = renderer.height / 2;
             const w = 4 * levelWidth * scale;
             const h = 2 * renderer.height;
-
-            spriteBatch.drawRectangleOffCenter(texture, x - w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
             spriteBatch.drawRectangleOffCenter(texture, x, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
-            spriteBatch.drawRectangleOffCenter(texture, x + w, y, w, h, 0, 0, 1, 1, 1, 1, 1, 1);
 
             const texture1 = textures[backgrounds[backgroundIndex].textureName];
             const [w1, _h1] = sizeWorldToScreen(levelWidth, 0);
